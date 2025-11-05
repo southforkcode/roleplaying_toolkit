@@ -49,6 +49,13 @@ python roleplaying_toolkit.py
   - Example: `fate safe,encounter` → select between two outcomes
   - Example: `fate success,partial,failure` → select between three outcomes
 
+#### Journal System
+
+- `journal [limit]` - View the last N journal entries (default 10)
+  - Example: `journal` → shows last 10 entries
+  - Example: `journal 20` → shows last 20 entries
+  - Automatically logs journey starts, progress, and completions
+
 #### Save/Load System
 
 - `save [name]` - Save current game state (defaults to 'quicksave')
@@ -157,6 +164,43 @@ Fate checked: safe (50%), encounter (50%) => d100 => 75 => encounter
 > fate success,partial_success,failure
 Fate checked: success (33%), partial_success (33%), failure (33%) => d100 => 42 => partial_success
 ```
+
+### Session Documentation with Journal
+
+The journal system automatically documents your actions throughout a session, creating a persistent record you can review at any time.
+
+**Automatic Logging:**
+
+Events are automatically logged when you:
+
+- Start a journey (logs journey name, steps, difficulty)
+- Make progress (logs amount of progress on current journey)
+- Complete a journey (logs completion with final progress)
+
+**Viewing Your Journal:**
+
+- `journal` - View the last 10 entries
+- `journal 20` - View the last 20 entries
+- Each entry shows timestamp and what happened
+
+**Example Journal Output:**
+
+```text
+> journal
+Journal Entries:
+
+1. [2025-11-05 14:30:22] Started journey: 'Find the Lost Temple'
+2. [2025-11-05 14:31:15] Made 2 step(s) on 'Find the Lost Temple'
+3. [2025-11-05 14:32:40] Made 1 step(s) on 'Find the Lost Temple'
+4. [2025-11-05 14:35:00] Completed journey: 'Find the Lost Temple'
+5. [2025-11-05 14:35:15] Started journey: 'Escort the Merchant'
+```
+
+**Persistent Recording:**
+
+- Journal entries are saved in YAML format in `saves/journal.yaml`
+- Entries are never lost - even after closing and reopening the application
+- Future versions will support named sessions and advanced filtering
 
 ### Session Management
 

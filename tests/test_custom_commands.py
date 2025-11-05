@@ -3,6 +3,7 @@
 import unittest
 from unittest.mock import patch
 from lib.custom_commands import create_extended_command_handler
+from lib.journal_manager import JournalManager
 
 
 class TestCustomCommands(unittest.TestCase):
@@ -11,6 +12,9 @@ class TestCustomCommands(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.handler = create_extended_command_handler()
+        # Clear journal for each test to avoid cross-test pollution
+        journal_manager = JournalManager()
+        journal_manager.clear_journal()
 
     def test_extended_handler_has_custom_commands(self):
         """Test that extended handler includes custom commands."""
@@ -337,6 +341,138 @@ class TestCustomCommands(unittest.TestCase):
             self.assertIn("safe", result["message"])
             self.assertIn("encounter", result["message"])
             self.assertFalse(result["exit"])
+
+    def test_journey_auto_logs_to_journal(self):
+        """Test that starting a journey logs to journal."""
+        # Start a journey
+        self.handler.process_input('journey "Test Quest" 5 2')
+
+        # Check journal has entry
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        self.assertIn("Test Quest", result["message"])
+        self.assertIn("Started journey", result["message"])
+
+    def test_journal_invalid_limit(self):
+        """Test journal command with invalid limit."""
+        result = self.handler.process_input("journal invalid")
+
+        self.assertFalse(result["success"])
+        self.assertIn("Usage: journal", result["message"])
+
+    def test_progress_auto_logs_to_journal(self):
+        """Test that progress is logged to journal."""
+        from lib.journal_manager import JournalManager
+
+        # Create a fresh journal to avoid test pollution
+        journal_manager = JournalManager("saves/test_journal.yaml")
+        journal_manager.clear_journal()
+
+        # Use the extended handler's managers
+        self.handler.process_input('journey "Quest" 5 2')
+        self.handler.process_input("progress 2")
+
+        # Check that progress was logged
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        # Look for the progress entry in journal output
+        lines = result["message"].split("\n")
+        has_progress_entry = any("Made 2 step" in line for line in lines)
+        self.assertTrue(
+            has_progress_entry,
+            f"Did not find progress entry. Journal output: {result['message']}"
+        )
+
+    def test_stop_journey_auto_logs_to_journal(self):
+        """Test that completing a journey logs to journal."""
+        # Start a journey
+        self.handler.process_input('journey "Test Quest" 5 2')
+
+        # Complete the journey
+        self.handler.process_input("stop")
+
+        # Check journal has stop entry
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        self.assertIn("Completed journey", result["message"])
+
+    def test_journal_with_limit(self):
+        """Test journal command with custom limit."""
+        # Add multiple entries
+        for i in range(15):
+            self.handler.process_input(f'journey "Quest {i}" {i + 1} 1')
+
+        # Request only 5 entries
+        result = self.handler.process_input("journal 5")
+
+        self.assertTrue(result["success"])
+        # Should have 5 entries (15 journeys total, but only showing 5)
+        self.assertIn("Quest 14", result["message"])  # Most recent
+        self.assertNotIn("Quest 9", result["message"])  # Outside limit
+
+    def test_journal_invalid_limit(self):
+        """Test journal command with invalid limit."""
+        result = self.handler.process_input("journal invalid")
+
+        self.assertFalse(result["success"])
+        self.assertIn("Usage: journal", result["message"])
+
+    def test_journal_negative_limit(self):
+        """Test journal command with negative limit."""
+        result = self.handler.process_input("journal -5")
+
+        self.assertFalse(result["success"])
+        self.assertIn("positive number", result["message"])
+
+    def test_journal_persistence(self):
+        """Test that journal entries are persisted between handler instances."""
+        import os
+        import tempfile
+
+        # Create a temporary journal file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = os.path.join(tmpdir, "journal.yaml")
+
+            # Create first handler and add entries
+            from lib.journal_manager import JournalManager
+
+            journal1 = JournalManager(journal_path)
+            journal1.add_entry(
+                "test_event", "Test entry 1", {"key": "value"}
+            )
+
+            # Create second handler with same file
+            journal2 = JournalManager(journal_path)
+            entries = journal2.get_entries(10)
+
+            # Should have the entry from first handler
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0]["description"], "Test entry 1")
+
+    def test_new_command_clears_journal(self):
+        """Test that session reset clears journal entries."""
+        # Start a journey and make progress to create journal entries
+        self.handler.process_input('journey "Clear Quest" 5 2')
+        self.handler.process_input("progress 2")
+
+        # Verify journal has entries
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        self.assertIn("Clear Quest", result["message"])
+
+        # Reset session (first new)
+        first = self.handler.process_input("new")
+        self.assertIn("Type 'new' again", first["message"])
+
+        # Confirm reset (second new)
+        second = self.handler.process_input("new")
+        self.assertIn("Session reset", second["message"])
+        self.assertIn("journal reset", second["message"].lower())
+
+        # Verify journal is now empty
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        self.assertIn("empty", result["message"].lower())
 
 
 if __name__ == "__main__":

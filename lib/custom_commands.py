@@ -3,15 +3,17 @@
 from lib.command_handler import CommandHandler
 from lib.journey_system import JourneyManager
 from lib.state_manager import StateManager
+from lib.journal_manager import JournalManager
 
 
 def create_extended_command_handler():
     """Create a command handler with additional custom commands."""
     handler = CommandHandler()
 
-    # Initialize journey manager and state manager
+    # Initialize journey manager, state manager, and journal manager
     journey_manager = JourneyManager()
     state_manager = StateManager()
+    journal_manager = JournalManager()
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
@@ -26,20 +28,28 @@ def create_extended_command_handler():
     )
     handler.register_command("saves", lambda cmd: _saves_command(cmd, state_manager))
     handler.register_command(
-        "journey", lambda cmd: _journey_command(cmd, journey_manager)
+        "journey",
+        lambda cmd: _journey_command(cmd, journey_manager, journal_manager),
     )
     handler.register_command(
-        "progress", lambda cmd: _progress_command(cmd, journey_manager)
+        "progress",
+        lambda cmd: _progress_command(cmd, journey_manager, journal_manager),
     )
     handler.register_command(
-        "stop", lambda cmd: _stop_journey_command(cmd, journey_manager)
+        "stop",
+        lambda cmd: _stop_journey_command(cmd, journey_manager, journal_manager),
     )
     # Register new session command with confirmation flow
     handler.register_command(
-        "new", lambda cmd: _new_command(cmd, journey_manager, handler)
+        "new",
+        lambda cmd: _new_command(cmd, journey_manager, journal_manager, handler),
     )
     # Register fate command for decision making
     handler.register_command("fate", _fate_command)
+    # Register journal command to view entries
+    handler.register_command(
+        "journal", lambda cmd: _journal_command(cmd, journal_manager)
+    )
 
     return handler
 
@@ -261,7 +271,7 @@ def _saves_command(command, state_manager):
         }
 
 
-def _journey_command(command, journey_manager):
+def _journey_command(command, journey_manager, journal_manager=None):
     """Start a new journey - example: journey "Find the lost treasure" 5 2."""
     if len(command.args) < 3:
         return {
@@ -297,6 +307,19 @@ def _journey_command(command, journey_manager):
 
     try:
         journey_manager.start_journey(name, steps, difficulty)
+        
+        # Log to journal if available
+        if journal_manager:
+            journal_manager.add_entry(
+                event_type="journey_start",
+                description=f"Started journey: '{name}'",
+                metadata={
+                    "journey_name": name,
+                    "total_steps": steps,
+                    "difficulty": difficulty,
+                },
+            )
+        
         return {
             "success": True,
             "message": f"Started journey: '{name}' ({steps} steps, {difficulty} difficulty)",
@@ -310,7 +333,7 @@ def _journey_command(command, journey_manager):
         }
 
 
-def _new_command(command, journey_manager, handler):
+def _new_command(command, journey_manager, journal_manager, handler):
     """Reset session state if user confirms by typing 'new' twice.
 
     Behavior:
@@ -319,25 +342,32 @@ def _new_command(command, journey_manager, handler):
       and set handler._pending_new = True.
     - If handler._pending_new is True and the user types 'new' again, clear all
       journeys and reset the confirmation flag.
+    - Also clears the journal when resetting the session.
     """
     # If no journeys are active, clear and return a message (no confirmation needed)
     if not journey_manager.has_active_journeys():
         # Ensure any pending flag is cleared
         if hasattr(handler, "_pending_new"):
             handler._pending_new = False
+        # Clear the journal as well
+        if journal_manager:
+            journal_manager.clear_journal()
         return {
             "success": True,
-            "message": "Session reset (no active journeys).",
+            "message": "Session reset (no active journeys) and journal cleared.",
             "exit": False,
         }
 
     # If confirmation pending and user typed 'new' again -> perform reset
     if hasattr(handler, "_pending_new") and handler._pending_new:
         journey_manager.stop_all_journeys()
+        # Clear the journal as well
+        if journal_manager:
+            journal_manager.clear_journal()
         handler._pending_new = False
         return {
             "success": True,
-            "message": "Session reset. All journeys cleared.",
+            "message": "Session reset. All journeys cleared and journal reset.",
             "exit": False,
         }
 
@@ -352,7 +382,7 @@ def _new_command(command, journey_manager, handler):
     }
 
 
-def _progress_command(command, journey_manager):
+def _progress_command(command, journey_manager, journal_manager=None):
     """Make progress on the current journey - example: progress 2."""
     if not journey_manager.has_active_journeys():
         return {
@@ -376,7 +406,25 @@ def _progress_command(command, journey_manager):
             }
 
     try:
+        # Get current journey before making progress (it might be removed if completed)
+        current_journey = journey_manager.current_journey
+        journey_name = current_journey.name if current_journey else "Unknown"
+        
         result = journey_manager.make_progress(steps)
+        
+        # Log to journal if available
+        if journal_manager and current_journey:
+            journal_manager.add_entry(
+                event_type="journey_progress",
+                description=f"Made {steps} step(s) on '{journey_name}'",
+                metadata={
+                    "journey_name": journey_name,
+                    "progress_amount": steps,
+                    "current_progress": current_journey.progress,
+                    "total_steps": current_journey.total_steps,
+                },
+            )
+        
         return {
             "success": True,
             "message": result,
@@ -390,7 +438,7 @@ def _progress_command(command, journey_manager):
         }
 
 
-def _stop_journey_command(command, journey_manager):
+def _stop_journey_command(command, journey_manager, journal_manager=None):
     """Stop the current journey."""
     if not journey_manager.has_active_journeys():
         return {
@@ -401,9 +449,26 @@ def _stop_journey_command(command, journey_manager):
 
     try:
         stopped_journey = journey_manager.stop_current_journey()
+        
+        # Log to journal if available
+        if journal_manager:
+            journal_manager.add_entry(
+                event_type="journey_stop",
+                description=f"Completed journey: '{stopped_journey.name}'",
+                metadata={
+                    "journey_name": stopped_journey.name,
+                    "final_progress": stopped_journey.progress,
+                    "total_steps": stopped_journey.total_steps,
+                    "difficulty": stopped_journey.difficulty,
+                },
+            )
+
         return {
             "success": True,
-            "message": f"Stopped journey: '{stopped_journey.name}' (was {stopped_journey.progress}/{stopped_journey.total_steps})",
+            "message": (
+                f"Stopped journey: '{stopped_journey.name}' "
+                f"(was {stopped_journey.progress}/{stopped_journey.total_steps})"
+            ),
             "exit": False,
         }
     except ValueError as e:
@@ -480,6 +545,51 @@ def _fate_command(command):
         f"Fate checked: {probabilities} => d100 => {d100_roll} => "
         f"{selected_option}"
     )
+
+    return {
+        "success": True,
+        "message": message,
+        "exit": False,
+    }
+
+
+def _journal_command(command, journal_manager):
+    """Display the journal entries."""
+    # Parse optional limit argument
+    limit = 10
+    if command.args:
+        try:
+            limit = int(command.args[0])
+            if limit <= 0:
+                return {
+                    "success": False,
+                    "message": "Limit must be a positive number",
+                    "exit": False,
+                }
+        except ValueError:
+            return {
+                "success": False,
+                "message": "Usage: journal [limit]\nExample: journal 10 (shows last 10 entries, default)",
+                "exit": False,
+            }
+
+    entries = journal_manager.get_entries(limit)
+
+    if not entries:
+        return {
+            "success": True,
+            "message": "Journal is empty. Start a journey to record events!",
+            "exit": False,
+        }
+
+    # Format the output
+    output_lines = ["Journal Entries:\n"]
+    for i, entry in enumerate(entries, 1):
+        timestamp = entry.get("timestamp", "Unknown")
+        description = entry.get("description", "")
+        output_lines.append(f"{i}. [{timestamp}] {description}")
+
+    message = "\n".join(output_lines)
 
     return {
         "success": True,
