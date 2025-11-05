@@ -1,17 +1,32 @@
 """Example of extending the command handler with custom commands."""
 
 from lib.command_handler import CommandHandler
+from lib.journey_system import JourneyManager
 
 
 def create_extended_command_handler():
     """Create a command handler with additional custom commands."""
     handler = CommandHandler()
 
+    # Initialize journey manager
+    journey_manager = JourneyManager()
+
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
-    handler.register_command("status", _status_command)
+    handler.register_command(
+        "status", lambda cmd: _status_command(cmd, journey_manager)
+    )
     handler.register_command("save", _save_command)
     handler.register_command("load", _load_command)
+    handler.register_command(
+        "journey", lambda cmd: _journey_command(cmd, journey_manager)
+    )
+    handler.register_command(
+        "progress", lambda cmd: _progress_command(cmd, journey_manager)
+    )
+    handler.register_command(
+        "stop", lambda cmd: _stop_journey_command(cmd, journey_manager)
+    )
 
     return handler
 
@@ -42,14 +57,19 @@ def _roll_dice_command(command):
                 "success": False,
                 "message": (
                     f"Invalid modifier '{command.args[1]}'. "
-                    "Use 'advantage', 'adv', 'a' or 'disadvantage', 'disadv', 'd'"
+                    "Use 'advantage', 'adv', 'a' or 'disadvantage', "
+                    "'disadv', 'd'"
                 ),
                 "exit": False,
             }
 
     try:
         if "d" not in dice_notation:
-            return {"success": False, "message": "Invalid dice notation. Use format like '2d6' or 'd20'", "exit": False}
+            return {
+                "success": False,
+                "message": "Invalid dice notation. Use format like '2d6' or 'd20'",
+                "exit": False,
+            }
 
         if dice_notation.startswith("d"):
             # Handle 'd20' format (single die)
@@ -65,7 +85,11 @@ def _roll_dice_command(command):
             raise ValueError("Dice count and sides must be positive")
 
         if num_dice > 100:
-            return {"success": False, "message": "Too many dice! Maximum is 100 dice per roll.", "exit": False}
+            return {
+                "success": False,
+                "message": "Too many dice! Maximum is 100 dice per roll.",
+                "exit": False,
+            }
 
         if advantage_mode:
             # Roll two sets of dice for advantage/disadvantage
@@ -76,37 +100,31 @@ def _roll_dice_command(command):
 
             if advantage_mode == "advantage":
                 chosen_total = max(total1, total2)
-                other_total = min(total1, total2)
             else:  # disadvantage
                 chosen_total = min(total1, total2)
-                other_total = max(total1, total2)
 
             if num_dice == 1:
-                message = f"Rolled {dice_notation} ({advantage_mode}): {chosen_total}, {other_total} => {chosen_total}"
+                # Always display the rolls in descending order (highest first)
+                rolls = sorted([total1, total2], reverse=True)
+                message = (
+                    f"Rolled {dice_notation} ({advantage_mode}): "
+                    f"{rolls[0]}, {rolls[1]} => {chosen_total}"
+                )
             else:
-                # Show both sets of rolls and which was chosen
-                if advantage_mode == "advantage":
-                    if total1 >= total2:
-                        message = (
-                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
-                            f"{rolls2} = {total2} => {rolls1} = {chosen_total}"
-                        )
-                    else:
-                        message = (
-                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
-                            f"{rolls2} = {total2} => {rolls2} = {chosen_total}"
-                        )
-                else:  # disadvantage
-                    if total1 <= total2:
-                        message = (
-                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
-                            f"{rolls2} = {total2} => {rolls1} = {chosen_total}"
-                        )
-                    else:
-                        message = (
-                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
-                            f"{rolls2} = {total2} => {rolls2} = {chosen_total}"
-                        )
+                # Determine which roll set is chosen and display accordingly
+                if (advantage_mode == "advantage" and total1 >= total2) or (
+                    advantage_mode == "disadvantage" and total1 <= total2
+                ):
+                    chosen_rolls, chosen_total_val = rolls1, total1
+                    other_rolls, other_total_val = rolls2, total2
+                else:
+                    chosen_rolls, chosen_total_val = rolls2, total2
+                    other_rolls, other_total_val = rolls1, total1
+
+                message = (
+                    f"Rolled {dice_notation} ({advantage_mode}): "
+                    f"{chosen_rolls} = {chosen_total_val}, {other_rolls} = {other_total_val} => {chosen_total}"
+                )
         else:
             # Normal roll
             rolls = [random.randint(1, sides) for _ in range(num_dice)]
@@ -120,15 +138,35 @@ def _roll_dice_command(command):
         return {"success": True, "message": message, "exit": False}
 
     except ValueError as e:
-        return {"success": False, "message": f"Invalid dice notation '{dice_notation}': {str(e)}", "exit": False}
+        return {
+            "success": False,
+            "message": f"Invalid dice notation '{dice_notation}': {str(e)}",
+            "exit": False,
+        }
 
 
-def _status_command(command):
+def _status_command(command, journey_manager):
     """Show current game status."""
-    # This would integrate with the state manager in a real implementation
+    status_lines = [
+        "Current Status:",
+        "  Health: 100/100",
+        "  Mana: 50/50",
+        "  Level: 1",
+        "  Location: Starting Town",
+    ]
+
+    # Add journey information if there are active journeys
+    if journey_manager.has_active_journeys():
+        status_lines.append("\nActive Journeys:")
+        journeys = journey_manager.get_all_journeys()
+        for i, journey in enumerate(journeys, 1):
+            status_lines.append(
+                f"  {i}. {journey.name} ({journey.progress}/{journey.total_steps}) - {journey.difficulty}"
+            )
+
     return {
         "success": True,
-        "message": "Current Status:\n  Health: 100/100\n  Mana: 50/50\n  Level: 1\n  Location: Starting Town",
+        "message": "\n".join(status_lines),
         "exit": False,
     }
 
@@ -149,4 +187,119 @@ def _load_command(command):
     save_name = command.args[0]
 
     # This would integrate with actual save/load functionality
-    return {"success": True, "message": f"Game loaded from '{save_name}'", "exit": False}
+    return {
+        "success": True,
+        "message": f"Game loaded from '{save_name}'",
+        "exit": False,
+    }
+
+
+def _journey_command(command, journey_manager):
+    """Start a new journey - example: journey "Find the lost treasure" 5 2."""
+    if len(command.args) < 3:
+        return {
+            "success": False,
+            "message": 'Usage: journey "name" <steps> <difficulty>\nExample: journey "Find the treasure" 5 2',
+            "exit": False,
+        }
+
+    # Parse arguments
+    name = command.args[0].strip("\"'")  # Remove quotes if present
+
+    try:
+        steps = int(command.args[1])
+        if steps <= 0:
+            raise ValueError("Steps must be a positive number")
+    except ValueError:
+        return {
+            "success": False,
+            "message": "Steps must be a positive number",
+            "exit": False,
+        }
+
+    try:
+        difficulty = int(command.args[2])
+        if difficulty < 0:
+            raise ValueError("Difficulty must be 0 or positive")
+    except ValueError:
+        return {
+            "success": False,
+            "message": "Difficulty must be 0 or a positive number",
+            "exit": False,
+        }
+
+    try:
+        journey_manager.start_journey(name, steps, difficulty)
+        return {
+            "success": True,
+            "message": f"Started journey: '{name}' ({steps} steps, {difficulty} difficulty)",
+            "exit": False,
+        }
+    except ValueError as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "exit": False,
+        }
+
+
+def _progress_command(command, journey_manager):
+    """Make progress on the current journey - example: progress 2."""
+    if not journey_manager.has_active_journeys():
+        return {
+            "success": False,
+            "message": 'No active journeys. Start one with: journey "name" <steps> <difficulty>',
+            "exit": False,
+        }
+
+    # Default to 1 step if no argument provided
+    steps = 1
+    if command.args:
+        try:
+            steps = int(command.args[0])
+            if steps <= 0:
+                raise ValueError("Steps must be a positive number")
+        except ValueError:
+            return {
+                "success": False,
+                "message": "Steps must be a positive number",
+                "exit": False,
+            }
+
+    try:
+        result = journey_manager.make_progress(steps)
+        return {
+            "success": True,
+            "message": result,
+            "exit": False,
+        }
+    except ValueError as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "exit": False,
+        }
+
+
+def _stop_journey_command(command, journey_manager):
+    """Stop the current journey."""
+    if not journey_manager.has_active_journeys():
+        return {
+            "success": False,
+            "message": "No active journeys to stop",
+            "exit": False,
+        }
+
+    try:
+        stopped_journey = journey_manager.stop_current_journey()
+        return {
+            "success": True,
+            "message": f"Stopped journey: '{stopped_journey.name}' (was {stopped_journey.progress}/{stopped_journey.total_steps})",
+            "exit": False,
+        }
+    except ValueError as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "exit": False,
+        }
