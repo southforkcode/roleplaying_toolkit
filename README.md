@@ -42,6 +42,13 @@ python roleplaying_toolkit.py
   - Advantage: `roll d20 advantage`, `roll 2d6 adv`, `roll d12 a`
   - Disadvantage: `roll d20 disadvantage`, `roll 3d6 disadv`, `roll d8 d`
 
+#### Fate Checking
+
+- `fate <option1>,<option2>[,<option3>...]` - Make a random decision between options
+  - Rolls d100 to select one option with equal probability
+  - Example: `fate safe,encounter` → select between two outcomes
+  - Example: `fate success,partial,failure` → select between three outcomes
+
 #### Save/Load System
 
 - `save [name]` - Save current game state (defaults to 'quicksave')
@@ -124,6 +131,32 @@ D&D-style dice rolling with advantage and disadvantage mechanics:
 - Aliases: `disadvantage`, `disadv`, `d`
 - Single die: `roll d20 disadvantage` → `Rolled d20 (disadvantage): 7, 18 => 7`
 - Multiple dice: `roll 2d6 d` → `Rolled 2d6 (disadvantage): [1, 2] = 3, [5, 6] = 11 => 3`
+
+### On-the-Fly Decision Making with Fate
+
+The fate system lets you make random decisions between multiple options, useful for:
+
+- Determining random encounters while traveling
+- Deciding NPC actions and reactions
+- Creating narrative branching points
+- Resolving uncertain outcomes
+
+**How Fate Works:**
+
+- Specify 2 or more options separated by commas
+- Each option has equal probability of selection
+- A d100 roll determines which option is selected
+- All options and the final selection are clearly shown
+
+**Example Usage:**
+
+```text
+> fate safe,encounter
+Fate checked: safe (50%), encounter (50%) => d100 => 75 => encounter
+
+> fate success,partial_success,failure
+Fate checked: success (33%), partial_success (33%), failure (33%) => d100 => 42 => partial_success
+```
 
 ### Session Management
 

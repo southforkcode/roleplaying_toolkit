@@ -269,6 +269,75 @@ class TestCustomCommands(unittest.TestCase):
         again = self.handler.process_input("new")
         self.assertIn("Type 'new' again to confirm", again["message"])
 
+    def test_fate_two_options(self):
+        """Test fate command with two options."""
+        with patch("random.randint", return_value=25):
+            result = self.handler.process_input("fate safe,encounter")
+
+            self.assertTrue(result["success"])
+            self.assertIn("Fate checked:", result["message"])
+            self.assertIn("safe (50%)", result["message"])
+            self.assertIn("encounter (50%)", result["message"])
+            self.assertIn("d100 => 25", result["message"])
+            self.assertIn("=> safe", result["message"])
+            self.assertFalse(result["exit"])
+
+    def test_fate_multiple_options(self):
+        """Test fate command with more than two options."""
+        with patch("random.randint", return_value=50):
+            result = self.handler.process_input("fate option1,option2,option3")
+
+            self.assertTrue(result["success"])
+            self.assertIn("option1 (33%)", result["message"])
+            self.assertIn("option2 (33%)", result["message"])
+            self.assertIn("option3 (33%)", result["message"])
+            self.assertIn("d100 => 50", result["message"])
+            self.assertFalse(result["exit"])
+
+    def test_fate_no_args(self):
+        """Test fate command with no arguments."""
+        result = self.handler.process_input("fate")
+
+        self.assertFalse(result["success"])
+        self.assertIn("Usage: fate", result["message"])
+        self.assertIn("Example: fate safe,encounter", result["message"])
+
+    def test_fate_single_option(self):
+        """Test fate command with single option (should fail)."""
+        result = self.handler.process_input("fate onlyoption")
+
+        self.assertFalse(result["success"])
+        self.assertIn("at least 2 options", result["message"])
+
+    def test_fate_selection_high_roll(self):
+        """Test that high d100 roll selects last option."""
+        with patch("random.randint", return_value=99):
+            result = self.handler.process_input("fate first,second,third")
+
+            self.assertTrue(result["success"])
+            self.assertIn("d100 => 99", result["message"])
+            self.assertIn("=> third", result["message"])
+
+    def test_fate_selection_low_roll(self):
+        """Test that low d100 roll selects first option."""
+        with patch("random.randint", return_value=1):
+            result = self.handler.process_input("fate first,second,third")
+
+            self.assertTrue(result["success"])
+            self.assertIn("d100 => 1", result["message"])
+            self.assertIn("=> first", result["message"])
+
+    def test_fate_with_spaces(self):
+        """Test fate command handles spaces around options."""
+        with patch("random.randint", return_value=50):
+            # The fate command expects options in a single argument separated by commas
+            result = self.handler.process_input('fate "safe , encounter"')
+
+            self.assertTrue(result["success"])
+            self.assertIn("safe", result["message"])
+            self.assertIn("encounter", result["message"])
+            self.assertFalse(result["exit"])
+
 
 if __name__ == "__main__":
     unittest.main()
