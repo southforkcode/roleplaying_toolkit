@@ -1,14 +1,14 @@
 # Roleplaying Toolkit
 
-A command-line toolkit for roleplaying games with an extensible command system.
+A command-line toolkit for roleplaying games with journey tracking, dice rolling, and save/load functionality.
 
 ## Features
 
-- **Interactive Command Loop**: Text-based interface with command parsing
-- **Extensible Command System**: Easy to add custom commands
-- **Built-in Commands**: Help, quit/exit functionality
-- **State Management**: Integration with game state system
-- **Comprehensive Testing**: Full unit test coverage
+- **Journey System**: Track long-term quests and adventures with progress monitoring
+- **Dice Rolling**: Full D&D-style dice rolling with advantage/disadvantage support
+- **Save/Load System**: Persistent game state with named save slots
+- **Session Management**: Reset and manage game sessions safely
+- **Interactive Interface**: User-friendly command-line interface
 
 ## Usage
 
@@ -20,209 +20,147 @@ python roleplaying_toolkit.py
 
 ### Available Commands
 
+#### Basic Commands
+
 - `help` - Show available commands
 - `quit` / `exit` - Exit the application
+- `status` - Show current game status
+- `new` - Reset session (requires double confirmation)
+
+#### Journey System
+
+- `journey "name" <steps> <difficulty>` - Start a new journey
+  - Example: `journey "Find the Lost Temple" 10 3`
+- `progress [amount]` - Make progress on current journey (defaults to 1 step)
+  - Example: `progress 2`
+- `stop` - Complete and remove the current journey
+
+#### Dice Rolling
+
 - `roll <dice> [advantage|disadvantage]` - Roll dice with optional advantage/disadvantage
   - Basic: `roll d20`, `roll 2d6`
   - Advantage: `roll d20 advantage`, `roll 2d6 adv`, `roll d12 a`
   - Disadvantage: `roll d20 disadvantage`, `roll 3d6 disadv`, `roll d8 d`
-- `status` - Show current game status
-- `save [name]` - Save game state (defaults to 'quicksave')
-- `load <name>` - Load game state
 
-## Architecture
+#### Save/Load System
 
-### Command Handling (`lib/command_handler.py`)
+- `save [name]` - Save current game state (defaults to 'quicksave')
+- `load <name>` - Load saved game state
+- `saves` - List all available save files
 
-The `CommandHandler` class provides:
+## Feature Details
 
-- **Command Parsing**: Handles quoted arguments and proper tokenization
-- **Command Registration**: Easy way to add custom commands
-- **Error Handling**: Graceful handling of invalid commands and exceptions
-- **Extensibility**: Simple interface for adding new functionality
+### Journey Tracking Details
 
-### Extended Commands (`lib/custom_commands.py`)
+Track long-term quests and adventures with the journey system:
 
-The main application now includes extended functionality:
+- **Stack-based Management**: Start multiple journeys, with the most recent being "current"
+- **Progress Tracking**: Make incremental progress toward journey completion
+- **Automatic Completion**: Journeys are removed when completed
+- **Persistent State**: Journey progress is saved with your game state
 
-- **Dice Rolling**: `roll 2d6`, `roll d20` - Roll dice with proper validation
-  - **Advantage/Disadvantage**: Support for advantage and disadvantage rolls
-  - Advantage: Rolls twice and takes the higher result (`advantage`, `adv`, `a`)
-  - Disadvantage: Rolls twice and takes the lower result (`disadvantage`, `disadv`, `d`)
-  - Example: `roll d20 advantage` outputs `Rolled d20 (advantage): 18, 7 => 18`
-- **Game Status**: `status` - Display current game state information  
-- **Save/Load**: `save [name]`, `load <name>` - Game state persistence
+**Example Journey Workflow:**
 
-## Features Detail
+```text
+> journey "Find the Lost Temple" 10 3
+Started journey: 'Find the Lost Temple' (10 steps, 3 difficulty)
 
-### Advantage and Disadvantage Rolling
+> progress 2
+Progress on 'Find the Lost Temple': 2/10
 
-The roll command supports D&D-style advantage and disadvantage mechanics:
+> journey "Escort the Merchant" 5 1
+Started journey: 'Escort the Merchant' (5 steps, 1 difficulty)
+
+> status
+Current Status:
+  Health: 100/100
+  Mana: 50/50
+  Level: 1
+  Location: Starting Town
+
+Active Journeys:
+  1. Escort the Merchant (0/5) - 1
+  2. Find the Lost Temple (2/10) - 3
+```
+
+### Persistent State Management
+
+Persistent game state with multiple save slots:
+
+- **YAML Format**: Human-readable save files
+- **Named Saves**: Create multiple save slots for different scenarios
+- **Full State Restoration**: Complete journey stack and progress preserved
+- **Session Persistence**: Load games across application restarts
+
+**Example Save/Load Usage:**
+
+```text
+> save before_boss
+Game saved as 'before_boss' at saves/before_boss.yaml
+
+> saves
+Available saves:
+  before_boss - 2025-11-05 06:00:08 (2 journeys)
+  quicksave - 2025-11-05 05:57:00 (0 journeys)
+
+> load before_boss
+Game loaded from 'before_boss'
+```
+
+### Dice Rolling with Advantage/Disadvantage
+
+D&D-style dice rolling with advantage and disadvantage mechanics:
 
 **Advantage Rolling:**
 
 - Roll two sets of dice and take the higher total
 - Aliases: `advantage`, `adv`, `a`
 - Single die: `roll d20 advantage` → `Rolled d20 (advantage): 18, 7 => 18`
-- Multiple dice: `roll 3d6 adv` → `Rolled 3d6 (advantage): [1, 2, 3] = 6, [4, 5, 6] = 15 => [4, 5, 6] = 15`
+- Multiple dice: `roll 3d6 adv` → `Rolled 3d6 (advantage): [1, 2, 3] = 6, [4, 5, 6] = 15 => 15`
 
 **Disadvantage Rolling:**
 
 - Roll two sets of dice and take the lower total  
 - Aliases: `disadvantage`, `disadv`, `d`
 - Single die: `roll d20 disadvantage` → `Rolled d20 (disadvantage): 7, 18 => 7`
-- Multiple dice: `roll 2d6 d` → `Rolled 2d6 (disadvantage): [1, 2] = 3, [5, 6] = 11 => [1, 2] = 3`
+- Multiple dice: `roll 2d6 d` → `Rolled 2d6 (disadvantage): [1, 2] = 3, [5, 6] = 11 => 3`
+
+### Session Management
+
+Safe session reset with confirmation:
+
+- **Double Confirmation**: Type `new` twice to reset all journeys
+- **Cancellation**: Any other command after first `new` cancels the reset
+- **State Preservation**: Accidentally typing `new` won't immediately clear your progress
+
+## Getting Started
+
+1. **Installation**: Clone the repository and run the application
+
+   ```bash
+   git clone https://github.com/southforkcode/roleplaying_toolkit.git
+   cd roleplaying_toolkit
+   python roleplaying_toolkit.py
+   ```
+
+2. **First Steps**: Try these commands to get familiar with the system
+
+   ```text
+   > help
+   > journey "My First Quest" 5 1
+   > progress 2
+   > status
+   > save tutorial
+   ```
+
+3. **Advanced Usage**: Explore dice rolling and save management
+
+   ```text
+   > roll d20 advantage
+   > saves
+   > new
+   ```
 
 ## Development
 
-### Development Workflow Guidelines
-
-When implementing features or bug fixes, follow this structured approach:
-
-#### 1. Issue Analysis & Planning
-
-- **Read Referenced Issues**: Always start by thoroughly reading any GitHub issues referenced in the request
-- **Understand Requirements**: Break down the request into specific, testable requirements
-- **Design Planning**: Plan the code changes before implementation:
-  - Identify which files need modification
-  - Consider impact on existing functionality
-  - Plan test cases and edge cases
-  - Consider backward compatibility
-
-#### 2. Environment Setup
-
-##### Option A: Automated Setup (Recommended)
-
-```bash
-# The project includes automated Python environment configuration
-# This approach allows testing/linting without manual approval prompts
-# Simply run any pytest or flake8 command and the environment will be configured
-python -m pytest tests/ -v  # Auto-configures environment and runs tests
-python -m flake8 lib/ --max-line-length=120  # Auto-configures and lints
-```
-
-##### Option B: Manual Setup
-
-```bash
-# Manual environment setup (if needed)
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-#### 3. Implementation Process
-
-- **Feature Branch**: Create a descriptive feature branch
-- **Code Changes**: Implement following established patterns and conventions
-- **Code Quality**: Maintain consistent style and documentation
-- **Incremental Testing**: Test frequently during development
-
-#### 4. Testing & Quality Assurance
-
-```bash
-# Run all tests (comprehensive)
-python -m pytest tests/ -v
-
-# Run specific test files
-python -m pytest tests/test_custom_commands.py -v
-python -m pytest tests/test_command_handler.py -v
-
-# Run tests with coverage
-python -m pytest tests/ --cov=lib --cov-report=term-missing
-
-# Test specific functionality
-python -m pytest tests/ -k "advantage" -v
-```
-
-#### 5. Code Quality Checks
-
-```bash
-# Format code with black
-python -m black lib/ tests/ --line-length=120
-
-# Lint code with flake8
-python -m flake8 lib/ tests/ --max-line-length=120 --exclude=__pycache__
-
-# Check specific files
-python -m flake8 lib/custom_commands.py --max-line-length=120
-```
-
-#### 6. Integration Testing
-
-```bash
-# Test the actual application
-echo -e "help\nroll d20 advantage\nquit" | python roleplaying_toolkit.py
-```
-
-#### 7. Documentation Updates
-
-- Update README.md with new features/changes
-- Update docstrings for modified functions
-- Include usage examples for new functionality
-
-#### 8. Final Validation
-
-- All tests must pass: `python -m pytest tests/ -v`
-- Code must pass linting: `python -m flake8 lib/ tests/ --max-line-length=120`
-- Application must run without errors
-- New functionality must be documented
-
-### Running Tests
-
-```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run specific test file
-python -m pytest tests/test_command_handler.py -v
-
-# Run tests matching pattern
-python -m pytest tests/ -k "advantage" -v
-
-# Run with coverage report
-python -m pytest tests/ --cov=lib --cov-report=term-missing
-```
-
-### Adding Custom Commands
-
-1. Create a command handler function:
-
-```python
-def my_command_handler(command):
-    return {
-        "success": True,
-        "message": "Command executed!",
-        "exit": False
-    }
-```
-
-1. Register it with the command handler:
-
-```python
-command_handler.register_command("mycommand", my_command_handler)
-```
-
-### Test Coverage
-
-The project includes comprehensive tests for:
-
-- Command parsing and execution
-- Error handling
-- Main application integration
-- Custom command extensions
-
-## Project Structure
-
-```text
-roleplaying_toolkit/
-├── roleplaying_toolkit.py      # Main application entry point
-├── lib/
-│   ├── statemgr.py            # State management system
-│   ├── command_handler.py     # Core command handling logic
-│   ├── custom_commands.py     # Example custom commands
-│   └── states/                # Game states
-└── tests/                     # Unit tests
-    ├── test_command_handler.py
-    ├── test_main_integration.py
-    └── test_custom_commands.py
-```
+For developers interested in contributing or extending the toolkit, see [DEVELOPER.md](DEVELOPER.md) for comprehensive development guidelines, architecture details, and testing procedures.
