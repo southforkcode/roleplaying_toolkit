@@ -21,6 +21,12 @@ class CommandHandler:
 
     def __init__(self):
         self._commands: Dict[str, Callable] = {}
+        # Flag used to confirm destructive operations like resetting the
+        # session when the user types 'new' once and must confirm by
+        # typing 'new' again. Cleared automatically when any other
+        # command is entered.
+        self._pending_new: bool = False
+
         self._register_builtin_commands()
 
     def _register_builtin_commands(self):
@@ -88,7 +94,11 @@ class CommandHandler:
             handler = self._commands[command.name]
             return handler(command)
         except Exception as e:
-            return {"success": False, "message": f"Error executing command '{command.name}': {str(e)}", "exit": False}
+            return {
+                "success": False,
+                "message": f"Error executing command '{command.name}': {str(e)}",
+                "exit": False,
+            }
 
     def process_input(self, user_input: str) -> Dict[str, Any]:
         """Process raw user input - parse and execute command.
@@ -104,6 +114,12 @@ class CommandHandler:
         if command is None:
             return {"success": True, "message": "", "exit": False}
 
+        # If the parsed command is not the 'new' confirmation token, clear
+        # any pending 'new' confirmation so that typing anything other than
+        # 'new' after the first 'new' cancels the reset.
+        if hasattr(self, "_pending_new") and command.name != "new":
+            self._pending_new = False
+
         return self.execute_command(command)
 
     def get_available_commands(self) -> List[str]:
@@ -113,7 +129,9 @@ class CommandHandler:
     def _help_command(self, command: Command) -> Dict[str, Any]:
         """Built-in help command handler."""
         available_commands = self.get_available_commands()
-        message = "Available commands:\n" + "\n".join(f"  {cmd}" for cmd in available_commands)
+        message = "Available commands:\n" + "\n".join(
+            f"  {cmd}" for cmd in available_commands
+        )
 
         return {"success": True, "message": message, "exit": False}
 

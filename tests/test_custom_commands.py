@@ -231,6 +231,44 @@ class TestCustomCommands(unittest.TestCase):
         self.assertIn("Usage: load <save_name>", result["message"])
         self.assertFalse(result["exit"])
 
+    def test_new_command_confirm_resets(self):
+        """Typing 'new' twice should reset the session state."""
+        # Start a journey
+        self.handler.process_input('journey "Temp Quest" 3 1')
+        status_before = self.handler.process_input("status")
+        self.assertIn("Temp Quest", status_before["message"])
+
+        # First 'new' asks for confirmation
+        first = self.handler.process_input("new")
+        self.assertTrue(first["success"])
+        self.assertIn("Type 'new' again to confirm", first["message"])
+
+        # Second 'new' performs reset
+        second = self.handler.process_input("new")
+        self.assertTrue(second["success"])
+        self.assertIn("Session reset", second["message"])
+
+        # Status should not include the previous journey
+        status_after = self.handler.process_input("status")
+        self.assertNotIn("Temp Quest", status_after["message"]) 
+
+    def test_new_command_cancelled_by_other(self):
+        """Typing 'new' then another command should cancel confirmation."""
+        # Start a journey
+        self.handler.process_input('journey "Keep Quest" 4 2')
+
+        # First 'new' asks for confirmation
+        first = self.handler.process_input("new")
+        self.assertIn("Type 'new' again to confirm", first["message"])
+
+        # Now run a different command which should cancel pending confirmation
+        other = self.handler.process_input("status")
+        self.assertTrue(other["success"])
+
+        # If we type 'new' now, it should ask for confirmation again (not reset immediately)
+        again = self.handler.process_input("new")
+        self.assertIn("Type 'new' again to confirm", again["message"])
+
 
 if __name__ == "__main__":
     unittest.main()
