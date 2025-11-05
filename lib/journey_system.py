@@ -7,25 +7,22 @@ class Journey:
     """Represents a single journey with name, steps, difficulty, and progress."""
 
     def __init__(
-        self, name: str, total_steps: int, difficulty: str, current_step: int = 0
+        self, name: str, total_steps: int, difficulty: int, current_step: int = 0
     ):
         """Initialize a journey.
 
         Args:
             name: Journey name/description
             total_steps: Total number of steps to complete the journey
-            difficulty: Difficulty level of the journey ("easy", "medium", "hard")
+            difficulty: Difficulty level of the journey (0 or positive integer)
             current_step: Current progress (default 0)
         """
         if not name or not name.strip():
             raise ValueError("Journey name cannot be empty")
         if total_steps <= 0:
             raise ValueError("Total steps must be positive")
-        valid_difficulties = ["easy", "medium", "hard"]
-        if difficulty not in valid_difficulties:
-            raise ValueError(
-                f"Difficulty must be one of: {', '.join(valid_difficulties)}"
-            )
+        if difficulty < 0:
+            raise ValueError("Difficulty must be 0 or positive")
         if current_step < 0:
             raise ValueError("Current step cannot be negative")
         if current_step > total_steps:
@@ -123,13 +120,13 @@ class JourneyManager:
         """Get all journeys (current first, then deferred in reverse order)."""
         return list(reversed(self._journeys))
 
-    def start_journey(self, name: str, total_steps: int, difficulty: str) -> Journey:
+    def start_journey(self, name: str, total_steps: int, difficulty: int) -> Journey:
         """Start a new journey.
 
         Args:
             name: Journey name/description
             total_steps: Total number of steps
-            difficulty: Difficulty level ("easy", "medium", "hard")
+            difficulty: Difficulty level (0 or positive integer)
 
         Returns:
             The newly started journey

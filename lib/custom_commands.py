@@ -195,11 +195,11 @@ def _load_command(command):
 
 
 def _journey_command(command, journey_manager):
-    """Start a new journey - example: journey "Find the lost treasure" 5 medium."""
+    """Start a new journey - example: journey "Find the lost treasure" 5 2."""
     if len(command.args) < 3:
         return {
             "success": False,
-            "message": 'Usage: journey "name" <steps> <difficulty>\nExample: journey "Find the treasure" 5 medium',
+            "message": 'Usage: journey "name" <steps> <difficulty>\nExample: journey "Find the treasure" 5 2',
             "exit": False,
         }
 
@@ -217,12 +217,14 @@ def _journey_command(command, journey_manager):
             "exit": False,
         }
 
-    difficulty = command.args[2].lower()
-    valid_difficulties = ["easy", "medium", "hard"]
-    if difficulty not in valid_difficulties:
+    try:
+        difficulty = int(command.args[2])
+        if difficulty < 0:
+            raise ValueError("Difficulty must be 0 or positive")
+    except ValueError:
         return {
             "success": False,
-            "message": f"Difficulty must be one of: {', '.join(valid_difficulties)}",
+            "message": "Difficulty must be 0 or a positive number",
             "exit": False,
         }
 
