@@ -9,6 +9,11 @@ When implementing features or bug fixes, follow this structured approach:
 ### 1. Issue Analysis & Planning
 
 - **Read Referenced Issues**: Always start by thoroughly reading any GitHub issues referenced in the request
+- **Comment on Issues**: Add a comment to each GitHub issue with your approach before starting implementation:
+  - Describe the design or bug fix strategy you'll use
+  - Outline the files you plan to modify
+  - Identify any potential edge cases
+  - Ask for feedback if needed
 - **Understand Requirements**: Break down the request into specific, testable requirements
 - **Design Planning**: Plan the code changes before implementation:
   - Identify which files need modification
