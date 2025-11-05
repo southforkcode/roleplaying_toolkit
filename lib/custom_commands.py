@@ -75,21 +75,38 @@ def _roll_dice_command(command):
             total2 = sum(rolls2)
 
             if advantage_mode == "advantage":
-                chosen_rolls = rolls1 if total1 >= total2 else rolls2
                 chosen_total = max(total1, total2)
                 other_total = min(total1, total2)
             else:  # disadvantage
-                chosen_rolls = rolls1 if total1 <= total2 else rolls2
                 chosen_total = min(total1, total2)
                 other_total = max(total1, total2)
 
             if num_dice == 1:
                 message = f"Rolled {dice_notation} ({advantage_mode}): {chosen_total}, {other_total} => {chosen_total}"
             else:
-                message = (
-                    f"Rolled {dice_notation} ({advantage_mode}): {chosen_rolls} = "
-                    f"{chosen_total}, {other_total} => {chosen_total}"
-                )
+                # Show both sets of rolls and which was chosen
+                if advantage_mode == "advantage":
+                    if total1 >= total2:
+                        message = (
+                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
+                            f"{rolls2} = {total2} => {rolls1} = {chosen_total}"
+                        )
+                    else:
+                        message = (
+                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
+                            f"{rolls2} = {total2} => {rolls2} = {chosen_total}"
+                        )
+                else:  # disadvantage
+                    if total1 <= total2:
+                        message = (
+                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
+                            f"{rolls2} = {total2} => {rolls1} = {chosen_total}"
+                        )
+                    else:
+                        message = (
+                            f"Rolled {dice_notation} ({advantage_mode}): {rolls1} = {total1}, "
+                            f"{rolls2} = {total2} => {rolls2} = {chosen_total}"
+                        )
         else:
             # Normal roll
             rolls = [random.randint(1, sides) for _ in range(num_dice)]

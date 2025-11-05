@@ -137,10 +137,9 @@ class TestCustomCommands(unittest.TestCase):
             result = self.handler.process_input("roll 2d6 advantage")
 
             self.assertTrue(result["success"])
-            # Should pick the first roll when totals are equal
-            self.assertIn("Rolled 2d6 (advantage):", result["message"])
-            self.assertIn("= 8", result["message"])
-            self.assertIn("=> 8", result["message"])
+            # Should pick the first roll when totals are equal and show both sets
+            expected = "Rolled 2d6 (advantage): [3, 5] = 8, [2, 6] = 8 => [3, 5] = 8"
+            self.assertIn(expected, result["message"])
             self.assertFalse(result["exit"])
 
     def test_roll_multiple_dice_advantage_different_totals(self):
@@ -149,7 +148,8 @@ class TestCustomCommands(unittest.TestCase):
             result = self.handler.process_input("roll 2d6 adv")
 
             self.assertTrue(result["success"])
-            self.assertIn("Rolled 2d6 (advantage): [5, 6] = 11, 3 => 11", result["message"])
+            expected = "Rolled 2d6 (advantage): [1, 2] = 3, [5, 6] = 11 => [5, 6] = 11"
+            self.assertIn(expected, result["message"])
             self.assertFalse(result["exit"])
 
     def test_roll_multiple_dice_disadvantage(self):
@@ -158,7 +158,8 @@ class TestCustomCommands(unittest.TestCase):
             result = self.handler.process_input("roll 2d6 disadvantage")
 
             self.assertTrue(result["success"])
-            self.assertIn("Rolled 2d6 (disadvantage): [1, 2] = 3, 11 => 3", result["message"])
+            expected = "Rolled 2d6 (disadvantage): [1, 2] = 3, [5, 6] = 11 => [1, 2] = 3"
+            self.assertIn(expected, result["message"])
             self.assertFalse(result["exit"])
 
     def test_roll_complex_dice_advantage(self):
@@ -167,7 +168,8 @@ class TestCustomCommands(unittest.TestCase):
             result = self.handler.process_input("roll 3d6 a")
 
             self.assertTrue(result["success"])
-            self.assertIn("Rolled 3d6 (advantage): [4, 5, 6] = 15, 6 => 15", result["message"])
+            expected = "Rolled 3d6 (advantage): [1, 2, 3] = 6, [4, 5, 6] = 15 => [4, 5, 6] = 15"
+            self.assertIn(expected, result["message"])
             self.assertFalse(result["exit"])
 
     def test_roll_invalid_modifier(self):

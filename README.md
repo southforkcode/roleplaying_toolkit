@@ -64,14 +64,14 @@ The roll command supports D&D-style advantage and disadvantage mechanics:
 - Roll two sets of dice and take the higher total
 - Aliases: `advantage`, `adv`, `a`
 - Single die: `roll d20 advantage` → `Rolled d20 (advantage): 18, 7 => 18`
-- Multiple dice: `roll 3d6 adv` → `Rolled 3d6 (advantage): [4, 5, 6] = 15, 8 => 15`
+- Multiple dice: `roll 3d6 adv` → `Rolled 3d6 (advantage): [1, 2, 3] = 6, [4, 5, 6] = 15 => [4, 5, 6] = 15`
 
 **Disadvantage Rolling:**
 
 - Roll two sets of dice and take the lower total  
 - Aliases: `disadvantage`, `disadv`, `d`
 - Single die: `roll d20 disadvantage` → `Rolled d20 (disadvantage): 7, 18 => 7`
-- Multiple dice: `roll 2d6 d` → `Rolled 2d6 (disadvantage): [1, 2] = 3, 9 => 3`
+- Multiple dice: `roll 2d6 d` → `Rolled 2d6 (disadvantage): [1, 2] = 3, [5, 6] = 11 => [1, 2] = 3`
 
 ## Development
 
