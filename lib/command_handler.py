@@ -94,7 +94,11 @@ class CommandHandler:
             handler = self._commands[command.name]
             return handler(command)
         except Exception as e:
-            return {"success": False, "message": f"Error executing command '{command.name}': {str(e)}", "exit": False}
+            return {
+                "success": False,
+                "message": f"Error executing command '{command.name}': {str(e)}",
+                "exit": False,
+            }
 
     def process_input(self, user_input: str) -> Dict[str, Any]:
         """Process raw user input - parse and execute command.
@@ -125,7 +129,9 @@ class CommandHandler:
     def _help_command(self, command: Command) -> Dict[str, Any]:
         """Built-in help command handler."""
         available_commands = self.get_available_commands()
-        message = "Available commands:\n" + "\n".join(f"  {cmd}" for cmd in available_commands)
+        message = "Available commands:\n" + "\n".join(
+            f"  {cmd}" for cmd in available_commands
+        )
 
         return {"success": True, "message": message, "exit": False}
 

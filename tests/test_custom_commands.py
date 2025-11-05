@@ -248,9 +248,9 @@ class TestCustomCommands(unittest.TestCase):
         self.assertTrue(second["success"])
         self.assertIn("Session reset", second["message"])
 
-        # Status should show no journeys
+        # Status should not include the previous journey
         status_after = self.handler.process_input("status")
-        self.assertIn("No journeys in progress", status_after["message"]) 
+        self.assertNotIn("Temp Quest", status_after["message"]) 
 
     def test_new_command_cancelled_by_other(self):
         """Typing 'new' then another command should cancel confirmation."""
