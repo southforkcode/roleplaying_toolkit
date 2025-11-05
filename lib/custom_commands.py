@@ -38,6 +38,8 @@ def create_extended_command_handler():
     handler.register_command(
         "new", lambda cmd: _new_command(cmd, journey_manager, handler)
     )
+    # Register fate command for decision making
+    handler.register_command("fate", _fate_command)
 
     return handler
 
@@ -410,3 +412,77 @@ def _stop_journey_command(command, journey_manager):
             "message": str(e),
             "exit": False,
         }
+
+
+def _fate_command(command):
+    """Fate command for on-the-fly decision making.
+
+    Usage: fate option1,option2[,option3...]
+
+    Example: fate safe,encounter
+    Rolls a d100 and selects one of the options with equal probability.
+    """
+    import random
+
+    if not command.args:
+        return {
+            "success": False,
+            "message": (
+                "Usage: fate <option1>,<option2>[,<option3>...]\n"
+                "Example: fate safe,encounter"
+            ),
+            "exit": False,
+        }
+
+    # Parse the options - they are comma-separated
+    options_str = command.args[0]
+    options = [opt.strip() for opt in options_str.split(",")]
+
+    # Validate we have at least 2 options
+    if len(options) < 2:
+        return {
+            "success": False,
+            "message": (
+                "Fate requires at least 2 options separated by commas\n"
+                "Example: fate safe,encounter"
+            ),
+            "exit": False,
+        }
+
+    # Remove empty strings from options
+    options = [opt for opt in options if opt]
+
+    if len(options) < 2:
+        return {
+            "success": False,
+            "message": (
+                "Fate requires at least 2 options separated by commas\n"
+                "Example: fate safe,encounter"
+            ),
+            "exit": False,
+        }
+
+    # Roll d100 to select an option
+    d100_roll = random.randint(1, 100)
+
+    # Calculate probability per option and which one was selected
+    probability_per_option = 100 / len(options)
+    selected_index = min(
+        int((d100_roll - 1) / probability_per_option), len(options) - 1
+    )
+    selected_option = options[selected_index]
+
+    # Format the probability display for each option
+    probability_str = f"{probability_per_option:.0f}%"
+    probabilities = ", ".join([f"{opt} ({probability_str})" for opt in options])
+
+    message = (
+        f"Fate checked: {probabilities} => d100 => {d100_roll} => "
+        f"{selected_option}"
+    )
+
+    return {
+        "success": True,
+        "message": message,
+        "exit": False,
+    }
