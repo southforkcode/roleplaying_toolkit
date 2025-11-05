@@ -449,6 +449,31 @@ class TestCustomCommands(unittest.TestCase):
             self.assertEqual(len(entries), 1)
             self.assertEqual(entries[0]["description"], "Test entry 1")
 
+    def test_new_command_clears_journal(self):
+        """Test that session reset clears journal entries."""
+        # Start a journey and make progress to create journal entries
+        self.handler.process_input('journey "Clear Quest" 5 2')
+        self.handler.process_input("progress 2")
+
+        # Verify journal has entries
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        self.assertIn("Clear Quest", result["message"])
+
+        # Reset session (first new)
+        first = self.handler.process_input("new")
+        self.assertIn("Type 'new' again", first["message"])
+
+        # Confirm reset (second new)
+        second = self.handler.process_input("new")
+        self.assertIn("Session reset", second["message"])
+        self.assertIn("journal reset", second["message"].lower())
+
+        # Verify journal is now empty
+        result = self.handler.process_input("journal")
+        self.assertTrue(result["success"])
+        self.assertIn("empty", result["message"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()

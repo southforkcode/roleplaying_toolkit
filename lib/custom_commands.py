@@ -41,7 +41,8 @@ def create_extended_command_handler():
     )
     # Register new session command with confirmation flow
     handler.register_command(
-        "new", lambda cmd: _new_command(cmd, journey_manager, handler)
+        "new",
+        lambda cmd: _new_command(cmd, journey_manager, journal_manager, handler),
     )
     # Register fate command for decision making
     handler.register_command("fate", _fate_command)
@@ -332,7 +333,7 @@ def _journey_command(command, journey_manager, journal_manager=None):
         }
 
 
-def _new_command(command, journey_manager, handler):
+def _new_command(command, journey_manager, journal_manager, handler):
     """Reset session state if user confirms by typing 'new' twice.
 
     Behavior:
@@ -341,25 +342,32 @@ def _new_command(command, journey_manager, handler):
       and set handler._pending_new = True.
     - If handler._pending_new is True and the user types 'new' again, clear all
       journeys and reset the confirmation flag.
+    - Also clears the journal when resetting the session.
     """
     # If no journeys are active, clear and return a message (no confirmation needed)
     if not journey_manager.has_active_journeys():
         # Ensure any pending flag is cleared
         if hasattr(handler, "_pending_new"):
             handler._pending_new = False
+        # Clear the journal as well
+        if journal_manager:
+            journal_manager.clear_journal()
         return {
             "success": True,
-            "message": "Session reset (no active journeys).",
+            "message": "Session reset (no active journeys) and journal cleared.",
             "exit": False,
         }
 
     # If confirmation pending and user typed 'new' again -> perform reset
     if hasattr(handler, "_pending_new") and handler._pending_new:
         journey_manager.stop_all_journeys()
+        # Clear the journal as well
+        if journal_manager:
+            journal_manager.clear_journal()
         handler._pending_new = False
         return {
             "success": True,
-            "message": "Session reset. All journeys cleared.",
+            "message": "Session reset. All journeys cleared and journal reset.",
             "exit": False,
         }
 
