@@ -1,0 +1,8 @@
+version: '1.0'
+timestamp: '2025-11-05T05:57:23.924031'
+journey_manager:
+  journeys:
+  - name: Test Journey
+    total_steps: 5
+    difficulty: 2
+    progress: 2
