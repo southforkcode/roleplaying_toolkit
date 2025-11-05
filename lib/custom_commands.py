@@ -2,22 +2,25 @@
 
 from lib.command_handler import CommandHandler
 from lib.journey_system import JourneyManager
+from lib.state_manager import StateManager
 
 
 def create_extended_command_handler():
     """Create a command handler with additional custom commands."""
     handler = CommandHandler()
 
-    # Initialize journey manager
+    # Initialize journey manager and state manager
     journey_manager = JourneyManager()
+    state_manager = StateManager()
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
     handler.register_command(
         "status", lambda cmd: _status_command(cmd, journey_manager)
     )
-    handler.register_command("save", _save_command)
-    handler.register_command("load", _load_command)
+    handler.register_command("save", lambda cmd: _save_command(cmd, journey_manager, state_manager))
+    handler.register_command("load", lambda cmd: _load_command(cmd, journey_manager, state_manager))
+    handler.register_command("saves", lambda cmd: _saves_command(cmd, state_manager))
     handler.register_command(
         "journey", lambda cmd: _journey_command(cmd, journey_manager)
     )
@@ -171,27 +174,74 @@ def _status_command(command, journey_manager):
     }
 
 
-def _save_command(command):
-    """Save game state."""
+def _save_command(command, journey_manager, state_manager):
+    """Save game state to YAML file."""
     save_name = command.args[0] if command.args else "quicksave"
 
-    # This would integrate with actual save/load functionality
-    return {"success": True, "message": f"Game saved as '{save_name}'", "exit": False}
+    try:
+        message = state_manager.save_state(journey_manager, save_name)
+        return {"success": True, "message": message, "exit": False}
+    except (ValueError, OSError) as e:
+        return {"success": False, "message": f"Save failed: {e}", "exit": False}
 
 
-def _load_command(command):
-    """Load game state."""
+def _load_command(command, journey_manager, state_manager):
+    """Load game state from YAML file."""
     if not command.args:
         return {"success": False, "message": "Usage: load <save_name>", "exit": False}
 
     save_name = command.args[0]
 
-    # This would integrate with actual save/load functionality
-    return {
-        "success": True,
-        "message": f"Game loaded from '{save_name}'",
-        "exit": False,
-    }
+    try:
+        # Load the new state
+        new_journey_manager = state_manager.load_state(save_name)
+        
+        # Replace the current journey manager's state
+        journey_manager._journeys = new_journey_manager._journeys
+        
+        # Get status for confirmation
+        if journey_manager.has_active_journeys():
+            status = journey_manager.get_status_summary()
+            message = f"Game loaded from '{save_name}'\n\n{status}"
+        else:
+            message = f"Game loaded from '{save_name}' (no active journeys)"
+            
+        return {"success": True, "message": message, "exit": False}
+    except (FileNotFoundError, ValueError, OSError) as e:
+        return {"success": False, "message": f"Load failed: {e}", "exit": False}
+
+
+def _saves_command(command, state_manager):
+    """List available save files."""
+    try:
+        saves = state_manager.list_saves()
+        if not saves:
+            return {"success": True, "message": "No saved games found.", "exit": False}
+        
+        message_lines = ["Available saves:"]
+        for save_name in saves:
+            try:
+                info = state_manager.get_save_info(save_name)
+                timestamp = info.get("timestamp", "unknown")
+                journey_count = info.get("journey_count", 0)
+                if timestamp != "unknown" and timestamp:
+                    # Format timestamp to be more readable
+                    try:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        timestamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except:
+                        pass  # Keep original timestamp if parsing fails
+                
+                journey_text = f"{journey_count} journey{'s' if journey_count != 1 else ''}"
+                message_lines.append(f"  {save_name} - {timestamp} ({journey_text})")
+            except:
+                # If we can't get info, just show the name
+                message_lines.append(f"  {save_name}")
+        
+        return {"success": True, "message": "\n".join(message_lines), "exit": False}
+    except Exception as e:
+        return {"success": False, "message": f"Failed to list saves: {e}", "exit": False}
 
 
 def _journey_command(command, journey_manager):
