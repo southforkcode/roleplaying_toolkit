@@ -30,6 +30,10 @@ def create_extended_command_handler():
     handler.register_command(
         "stop", lambda cmd: _stop_journey_command(cmd, journey_manager)
     )
+    # Register new session command with confirmation flow
+    handler.register_command(
+        "new", lambda cmd: _new_command(cmd, journey_manager, handler)
+    )
 
     return handler
 
@@ -291,6 +295,40 @@ def _journey_command(command, journey_manager):
             "message": str(e),
             "exit": False,
         }
+
+
+def _new_command(command, journey_manager, handler):
+    """Reset session state if user confirms by typing 'new' twice.
+
+    Behavior:
+    - If there are no active journeys, perform a no-op reset and inform the user.
+    - If there are active journeys and this is the first 'new', ask for confirmation
+      and set handler._pending_new = True.
+    - If handler._pending_new is True and the user types 'new' again, clear all
+      journeys and reset the confirmation flag.
+    """
+    # If no journeys are active, clear and return a message (no confirmation needed)
+    if not journey_manager.has_active_journeys():
+        # Ensure any pending flag is cleared
+        if hasattr(handler, "_pending_new"):
+            handler._pending_new = False
+        return {"success": True, "message": "Session reset (no active journeys).", "exit": False}
+
+    # If confirmation pending and user typed 'new' again -> perform reset
+    if hasattr(handler, "_pending_new") and handler._pending_new:
+        journey_manager.stop_all_journeys()
+        handler._pending_new = False
+        return {"success": True, "message": "Session reset. All journeys cleared.", "exit": False}
+
+    # Otherwise, set pending confirmation and prompt the user
+    if hasattr(handler, "_pending_new"):
+        handler._pending_new = True
+
+    return {
+        "success": True,
+        "message": "Type 'new' again to confirm resetting the session.",
+        "exit": False,
+    }
 
 
 def _progress_command(command, journey_manager):

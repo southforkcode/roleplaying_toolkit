@@ -21,6 +21,12 @@ class CommandHandler:
 
     def __init__(self):
         self._commands: Dict[str, Callable] = {}
+        # Flag used to confirm destructive operations like resetting the
+        # session when the user types 'new' once and must confirm by
+        # typing 'new' again. Cleared automatically when any other
+        # command is entered.
+        self._pending_new: bool = False
+
         self._register_builtin_commands()
 
     def _register_builtin_commands(self):
@@ -103,6 +109,12 @@ class CommandHandler:
 
         if command is None:
             return {"success": True, "message": "", "exit": False}
+
+        # If the parsed command is not the 'new' confirmation token, clear
+        # any pending 'new' confirmation so that typing anything other than
+        # 'new' after the first 'new' cancels the reset.
+        if hasattr(self, "_pending_new") and command.name != "new":
+            self._pending_new = False
 
         return self.execute_command(command)
 
