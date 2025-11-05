@@ -22,7 +22,10 @@ python roleplaying_toolkit.py
 
 - `help` - Show available commands
 - `quit` / `exit` - Exit the application
-- `roll <dice>` - Roll dice (e.g., `roll d20`, `roll 2d6`)
+- `roll <dice> [advantage|disadvantage]` - Roll dice with optional advantage/disadvantage
+  - Basic: `roll d20`, `roll 2d6`
+  - Advantage: `roll d20 advantage`, `roll 2d6 adv`, `roll d12 a`
+  - Disadvantage: `roll d20 disadvantage`, `roll 3d6 disadv`, `roll d8 d`
 - `status` - Show current game status
 - `save [name]` - Save game state (defaults to 'quicksave')
 - `load <name>` - Load game state
@@ -43,8 +46,32 @@ The `CommandHandler` class provides:
 The main application now includes extended functionality:
 
 - **Dice Rolling**: `roll 2d6`, `roll d20` - Roll dice with proper validation
+  - **Advantage/Disadvantage**: Support for advantage and disadvantage rolls
+  - Advantage: Rolls twice and takes the higher result (`advantage`, `adv`, `a`)
+  - Disadvantage: Rolls twice and takes the lower result (`disadvantage`, `disadv`, `d`)
+  - Example: `roll d20 advantage` outputs `Rolled d20 (advantage): 18, 7 => 18`
 - **Game Status**: `status` - Display current game state information  
 - **Save/Load**: `save [name]`, `load <name>` - Game state persistence
+
+## Features Detail
+
+### Advantage and Disadvantage Rolling
+
+The roll command supports D&D-style advantage and disadvantage mechanics:
+
+**Advantage Rolling:**
+
+- Roll two sets of dice and take the higher total
+- Aliases: `advantage`, `adv`, `a`
+- Single die: `roll d20 advantage` → `Rolled d20 (advantage): 18, 7 => 18`
+- Multiple dice: `roll 3d6 adv` → `Rolled 3d6 (advantage): [4, 5, 6] = 15, 8 => 15`
+
+**Disadvantage Rolling:**
+
+- Roll two sets of dice and take the lower total  
+- Aliases: `disadvantage`, `disadv`, `d`
+- Single die: `roll d20 disadvantage` → `Rolled d20 (disadvantage): 7, 18 => 7`
+- Multiple dice: `roll 2d6 d` → `Rolled 2d6 (disadvantage): [1, 2] = 3, 9 => 3`
 
 ## Development
 
