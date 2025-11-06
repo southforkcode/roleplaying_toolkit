@@ -81,6 +81,16 @@ Organize your games into separate named spaces, each with their own journeys, sa
 - **Game Switching**: Easily switch between different games without losing progress
 - **Unsaved Confirmation**: Get prompted when switching games with unsaved changes
 - **Game Metadata**: Track total sessions and modification dates for each game
+- **Automatic Game Restoration**: The last played game is automatically restored on app startup
+
+**Startup Behavior (Issue #16):**
+
+The application automatically tracks the current game in `saves/current_game.yaml`:
+
+1. **No saved games**: Application prompts you to create a new game
+2. **Games exist, but no metadata**: Application prompts you to create a new game  
+3. **Valid current_game.yaml exists**: Application restores the last played game
+4. **Game deleted**: Application treats as case 2 (prompts for new game)
 
 **Example Game Management Workflow:**
 
@@ -109,6 +119,23 @@ Switched to game 'dnd_lost_temple'
 
 > status
 Current Status: ... (shows the state of dnd_lost_temple, not module_3_expanded)
+```
+
+**File Structure:**
+
+Each game is stored in its own folder with metadata automatically tracked:
+
+```yaml
+saves/
+  current_game.yaml           # Tracks current game and last access time
+  game_dnd_lost_temple/
+    game.yaml                 # Game metadata
+    journal.yaml              # Game-specific journal entries
+    state.yaml                # Game state and journey stack
+  game_module_3_expanded/
+    game.yaml
+    journal.yaml
+    state.yaml
 ```
 
 ### Journey Tracking Details

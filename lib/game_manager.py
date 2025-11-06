@@ -22,33 +22,47 @@ class GameManager:
         self._load_current_game()
 
     def _load_current_game(self) -> None:
-        """Load the last played game or None if no games exist."""
+        """Load the last played game or None if no games exist.
+
+        Implements issue #16 use cases:
+        1. No games: current_game = None
+        2. Games exist, no current_game.yaml: current_game = None (will prompt user)
+        3. current_game.yaml exists and points to valid game: load that game
+        4. current_game.yaml points to deleted game: treat as case 2
+        """
         games = self.list_games()
         if not games:
             self._current_game = None
             return
 
-        # Try to load from a state file if it exists
-        state_file = self.saves_directory / ".current_game"
-        if state_file.exists():
+        # Try to load from current_game.yaml metadata file
+        metadata_file = self.saves_directory / "current_game.yaml"
+        if metadata_file.exists():
             try:
-                with open(state_file, "r") as f:
-                    current = f.read().strip()
-                    if current in games:
-                        self._current_game = current
-                        return
-            except OSError:
+                with open(metadata_file, "r") as f:
+                    data = yaml.safe_load(f)
+                    if data and isinstance(data, dict):
+                        current = data.get("game_name")
+                        if current in games:
+                            self._current_game = current
+                            return
+            except (OSError, yaml.YAMLError):
                 pass
 
-        # Default to first game if state file doesn't exist or is invalid
-        self._current_game = games[0]
+        # If no valid current_game.yaml or it points to deleted game,
+        # don't set current game (None means prompt user for new game)
+        self._current_game = None
 
     def _save_current_game(self) -> None:
-        """Save the current game to state file."""
-        state_file = self.saves_directory / ".current_game"
+        """Save the current game to current_game.yaml metadata file."""
+        metadata_file = self.saves_directory / "current_game.yaml"
         try:
-            with open(state_file, "w") as f:
-                f.write(self._current_game or "")
+            metadata = {
+                "game_name": self._current_game or "",
+                "last_accessed": datetime.now().isoformat()
+            }
+            with open(metadata_file, "w") as f:
+                yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
         except OSError:
             pass
 
