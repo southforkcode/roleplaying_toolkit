@@ -6,6 +6,7 @@ from lib.journey_system import JourneyManager
 from lib.state_manager import StateManager
 from lib.journal_manager import JournalManager
 from lib.game_manager import GameManager
+from lib.player_context import PlayerCreationHandler
 
 
 def create_extended_command_handler():
@@ -50,7 +51,7 @@ def create_extended_command_handler():
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
     handler.register_command(
-        "status", lambda cmd: _status_command(cmd, journey_manager)
+        "status", lambda cmd: _status_command(cmd, journey_manager, game_manager)
     )
     handler.register_command(
         "save", lambda cmd: _save_command(cmd, journey_manager, game_manager)
@@ -93,6 +94,20 @@ def create_extended_command_handler():
     # Register journal command to view entries
     handler.register_command(
         "journal", lambda cmd: _journal_command(cmd, journal_manager)
+    )
+    # Register player creation command
+    handler.register_command(
+        "create_player",
+        lambda cmd: _create_player_command(cmd, game_manager, handler),
+    )
+    # Register yes/no handlers for confirmation prompts
+    handler.register_command(
+        "yes", 
+        lambda cmd: _confirmation_command(cmd, "yes", game_manager, journey_manager, journal_manager, handler)
+    )
+    handler.register_command(
+        "no",
+        lambda cmd: _confirmation_command(cmd, "no", game_manager, journey_manager, journal_manager, handler)
     )
 
     return handler
@@ -212,8 +227,11 @@ def _roll_dice_command(command):
         }
 
 
-def _status_command(command, journey_manager):
+def _status_command(command, journey_manager, game_manager):
     """Show current game status."""
+    from lib.player_manager import PlayerManager
+    from lib.ability_scores import ABILITY_SCORES
+
     status_lines = [
         "Current Status:",
         "  Health: 100/100",
@@ -221,6 +239,33 @@ def _status_command(command, journey_manager):
         "  Level: 1",
         "  Location: Starting Town",
     ]
+
+    # Add player information if game is selected
+    current_game = game_manager.get_current_game()
+    if current_game:
+        game_path = game_manager.get_game_path(current_game)
+        player_manager = PlayerManager(game_path)
+        player_count = player_manager.get_player_count()
+
+        if player_count > 0:
+            status_lines.append(f"\nParty Members ({player_count}):")
+            players = player_manager.get_all_players()
+            for i, player in enumerate(players, 1):
+                # Build ability abbreviations (only show set abilities)
+                ability_abbrev = []
+                for ability in ['strength', 'dexterity', 'constitution',
+                                'intelligence', 'wisdom', 'charisma']:
+                    score = player.get_ability(ability)
+                    if score is not None:  # Only show abilities that have been set
+                        short = ABILITY_SCORES[ability]['short']
+                        ability_abbrev.append(f"{short}:{score}")
+                
+                abilities_str = " ".join(ability_abbrev) if ability_abbrev else "(no abilities set)"
+                class_str = f"({player.class_type})" if player.class_type else "(no class)"
+                status_lines.append(
+                    f"  {i}. {player.name} {class_str}\n"
+                    f"      {abilities_str}"
+                )
 
     # Add journey information if there are active journeys
     if journey_manager.has_active_journeys():
@@ -422,7 +467,8 @@ def _new_game_command(
     """Start a new game.
 
     Behavior:
-    - `new <game_name>` starts a new game
+    - `new <game_name>` creates a new game or loads existing
+    - If game exists, ask for confirmation to wipe it (destructive)
     - If current game has unsaved changes, prompt for confirmation
     - If confirmed: reset current game to new initial state
     - If not confirmed: ignore the request
@@ -437,7 +483,49 @@ def _new_game_command(
 
     game_name = command.args[0]
 
-    # Check if we need to confirm unsaved changes
+    # Check if game already exists
+    games = game_manager.list_games()
+    game_exists = game_name in games
+
+    # If game exists and we haven't confirmed yet, ask for confirmation
+    if game_exists and not hasattr(handler, "_pending_new_game_confirmed"):
+        handler._pending_new_game_confirmed = False
+        handler._pending_new_game_name = game_name
+        return {
+            "success": True,
+            "message": f"Game '{game_name}' already exists. Create a fresh game (will wipe existing data)? (yes/no)",
+            "exit": False,
+        }
+
+    # Check for "yes" confirmation for wipe (if waiting for confirmation)
+    if (hasattr(handler, "_pending_new_game_confirmed") 
+            and handler._pending_new_game_confirmed is False):
+        # Check if input is yes/no
+        user_response = command.raw_input.strip().lower()
+        if user_response not in ["yes", "no"]:
+            # Treat non-yes/no as implicit "no"
+            handler._pending_new_game_confirmed = None
+            handler._pending_new_game_name = None
+            return {
+                "success": True,
+                "message": "You did not confirm. Keeping existing game.",
+                "exit": False,
+            }
+        
+        if user_response == "no":
+            handler._pending_new_game_confirmed = None
+            handler._pending_new_game_name = None
+            return {
+                "success": True,
+                "message": "You did not confirm. Keeping existing game.",
+                "exit": False,
+            }
+        
+        # User confirmed with "yes"
+        handler._pending_new_game_confirmed = True
+        game_name = handler._pending_new_game_name
+
+    # Check if we need to confirm unsaved changes in CURRENT game
     current_game = game_manager.get_current_game()
     game_info = (
         game_manager.get_game_info(current_game) if current_game else None
@@ -456,68 +544,59 @@ def _new_game_command(
             "exit": False,
         }
 
-    # Check for "yes" confirmation
+    # Check for "yes" confirmation for unsaved
     if hasattr(handler, "_pending_new_game") and handler._pending_new_game:
-        if command.raw_input.strip().lower() != "yes":
+        user_response = command.raw_input.strip().lower()
+        if user_response not in ["yes", "no"]:
             handler._pending_new_game = False
             return {
                 "success": True,
                 "message": "You did not confirm. Ignoring the request for a new game.",
                 "exit": False,
             }
+        
+        if user_response == "no":
+            handler._pending_new_game = False
+            return {
+                "success": True,
+                "message": "You did not confirm. Ignoring the request for a new game.",
+                "exit": False,
+            }
+        
         # User confirmed, proceed with new game
         game_name = handler._pending_new_game_name
         handler._pending_new_game = False
-        handler._pending_new_game_name = None
 
-    # Try to create or load the game
-    games = game_manager.list_games()
-    if game_name in games:
-        # Load existing game
-        success, message = game_manager.load_game(game_name)
-        if not success:
-            return {"success": False, "message": message, "exit": False}
-        # Mark game as saved (fresh load)
-        game_manager.update_game_metadata(game_name, current_session_unsaved=False)
-        # Clear journeys for new session but reload the game's journal
-        journey_manager.stop_all_journeys()
-        # Set journal path to game's journal
-        game_path = game_manager.get_game_path(game_name)
-        journal_path = game_path / "journal.yaml"
-        journal_manager.set_journal_path(str(journal_path))
-        # Load the game's quicksave if available
-        import yaml
+    # If game exists, delete it first (user confirmed)
+    if game_exists and getattr(handler, "_pending_new_game_confirmed", None) is True:
         try:
-            quicksave_path = game_path / "saves" / "quicksave.yaml"
-            if quicksave_path.exists():
-                with open(quicksave_path, "r") as f:
-                    state_data = yaml.safe_load(f)
-                if state_data and isinstance(state_data, dict):
-                    if "journey_manager" in state_data:
-                        restored_manager = JourneyManager.from_dict(
-                            state_data["journey_manager"]
-                        )
-                        # Replace journey manager's journeys with restored ones
-                        journey_manager._journeys = restored_manager._journeys
-        except (OSError, ValueError, KeyError, AttributeError):
-            # If loading fails, continue with empty journey manager
-            pass
-    else:
-        # Create new game
-        success, message = game_manager.create_game(game_name)
-        if not success:
-            return {"success": False, "message": message, "exit": False}
-        # Clear journeys and reset journal for new game
-        journey_manager.stop_all_journeys()
-        journal_manager.clear_journal()
-        # Set journal path to game's journal
-        game_path = game_manager.get_game_path(game_name)
-        journal_path = game_path / "journal.yaml"
-        journal_manager.set_journal_path(str(journal_path))
+            game_path = game_manager.get_game_path(game_name)
+            import shutil
+            if game_path.exists():
+                shutil.rmtree(game_path)
+        except OSError:
+            pass  # If deletion fails, create will handle it
+        finally:
+            # Clean up the pending state
+            handler._pending_new_game_confirmed = None
+            handler._pending_new_game_name = None
+
+    # Create new game
+    success, message = game_manager.create_game(game_name)
+    if not success:
+        return {"success": False, "message": message, "exit": False}
+    
+    # Clear journeys and reset journal for new game
+    journey_manager.stop_all_journeys()
+    journal_manager.clear_journal()
+    # Set journal path to game's journal
+    game_path = game_manager.get_game_path(game_name)
+    journal_path = game_path / "journal.yaml"
+    journal_manager.set_journal_path(str(journal_path))
 
     return {
         "success": True,
-        "message": f"Game '{game_name}' loaded/created. Ready to play!",
+        "message": f"Fresh game '{game_name}' created. Ready to play!",
         "exit": False,
     }
 
@@ -868,4 +947,67 @@ def _journal_command(command, journal_manager):
         "success": True,
         "message": message,
         "exit": False,
+    }
+
+
+def _confirmation_command(command, response, game_manager, journey_manager, 
+                          journal_manager, handler):
+    """Handle yes/no confirmations for pending operations.
+    
+    This routes yes/no responses back to the command that initiated
+    the confirmation prompt (typically 'new' for game creation).
+    """
+    # Create a synthetic 'new' command with the yes/no as raw_input
+    # This allows the _new_game_command to process the confirmation
+    from lib.command_handler import Command
+    
+    # Check if there's a pending game confirmation
+    if hasattr(handler, "_pending_new_game_confirmed"):
+        game_name = getattr(handler, "_pending_new_game_name", "")
+        new_cmd = Command("new", [game_name] if game_name else [], response)
+        return _new_game_command(new_cmd, game_manager, journey_manager, 
+                               journal_manager, handler)
+    
+    # Check if there's a pending unsaved game confirmation
+    if hasattr(handler, "_pending_new_game"):
+        game_name = getattr(handler, "_pending_new_game_name", "")
+        new_cmd = Command("new", [game_name] if game_name else [], response)
+        return _new_game_command(new_cmd, game_manager, journey_manager,
+                               journal_manager, handler)
+    
+    # No pending confirmation - just echo back
+    return {
+        "success": True,
+        "message": f"No confirmation needed. (Got: {response})",
+        "exit": False,
+    }
+
+
+def _create_player_command(command, game_manager, handler):
+    """Create a new player character in the current game."""
+    current_game = game_manager.get_current_game()
+
+    if not current_game:
+        return {
+            "success": False,
+            "message": "No game selected. Use 'select <game_name>' to select a game first.",
+            "exit": False,
+        }
+
+    # Initialize player creation handler, passing the main handler for dice roll delegation
+    player_handler = PlayerCreationHandler(game_manager, current_game, handler)
+
+    # Show welcome message
+    welcome_message = (
+        f"Starting player creation for game '{current_game}'.\n"
+        "Type 'help' for available commands.\n"
+        "Name of new player?"
+    )
+
+    return {
+        "success": True,
+        "message": welcome_message,
+        "exit": False,
+        "context": player_handler,  # Store context for next iteration
+        "mode": "player_creation",  # Signal we're entering player creation mode
     }
