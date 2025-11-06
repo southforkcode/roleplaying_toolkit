@@ -200,20 +200,18 @@ class PlayerCreationHandler:
             return message
 
         elif cmd == "roll":
-            # Check if this is a dice notation roll (e.g., "roll d20", "roll 2d6")
-            if args:
-                # If we have arguments, try to delegate to main dice roller
-                if self.main_handler:
-                    # Delegate to main handler for dice rolls
-                    result = self.main_handler.process_input(f"roll {args}")
-                    return result.get("message", "Unknown error")
-                else:
-                    # No main handler, but user tried to roll dice
-                    return "Cannot process dice rolls in this context"
+            # Roll requires dice notation (e.g., "roll d20", "roll 2d6")
+            if not args:
+                return "Usage: roll <dice_notation> (e.g., roll d20, roll 2d6)"
+            
+            # If we have arguments, try to delegate to main dice roller
+            if self.main_handler:
+                # Delegate to main handler for dice rolls
+                result = self.main_handler.process_input(f"roll {args}")
+                return result.get("message", "Unknown error")
             else:
-                # No arguments - roll D&D abilities as normal
-                success, message = self.context.roll_abilities()
-                return message
+                # No main handler, but user tried to roll dice
+                return "Cannot process dice rolls in this context"
 
         elif cmd == "status":
             return self.context.get_status()
@@ -228,7 +226,7 @@ class PlayerCreationHandler:
                 "  name <name>        - Set player name",
                 "  set <ability> <#>  - Set ability score",
                 "                       Abilities: str, dex, con, int, wis, cha",
-                "  roll               - Roll random abilities (4d6 drop lowest)",
+                "  roll <dice>        - Roll dice (e.g., roll d20, roll 2d6)",
                 "  status             - Show current player status",
                 "  save               - Save player to game",
                 "  help               - Show this help message",

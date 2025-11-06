@@ -162,12 +162,13 @@ class TestPlayerCreationHandler:
         assert handler.context.player.get_ability("strength") == 14
 
     def test_handle_roll_command(self, game_manager):
-        """Test handling roll command."""
+        """Test handling roll command requires dice notation."""
         handler = PlayerCreationHandler(game_manager, "test_game")
         handler.handle("name Jackbar")
+        # roll without arguments should return usage error
         response = handler.handle("roll")
-        assert "rolled" in response.lower() or "abilities" in response.lower()
-        # Verify abilities are NOT automatically assigned (should be None)
+        assert "Usage:" in response or "dice_notation" in response
+        # Verify abilities are NOT assigned
         assert handler.context.player.get_ability("strength") is None
 
     def test_handle_status_command(self, game_manager):
