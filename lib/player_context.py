@@ -133,16 +133,18 @@ class PlayerCreationContext:
 class PlayerCreationHandler:
     """Command handler for player creation mode."""
 
-    def __init__(self, game_manager, game_name: str):
+    def __init__(self, game_manager, game_name: str, main_handler=None):
         """Initialize the player creation handler.
 
         Args:
             game_manager: GameManager instance
             game_name: Name of the game
+            main_handler: Reference to main command handler for delegating dice rolls
         """
         self.context = PlayerCreationContext(game_manager, game_name)
         self.game_manager = game_manager
         self.game_name = game_name
+        self.main_handler = main_handler  # Reference to main handler for delegating
         self.awaiting_name = True  # Track if we're waiting for a name input
 
     def handle(self, command: str) -> str:
@@ -197,8 +199,20 @@ class PlayerCreationHandler:
             return message
 
         elif cmd == "roll":
-            success, message = self.context.roll_abilities()
-            return message
+            # Check if this is a dice notation roll (e.g., "roll d20", "roll 2d6")
+            if args:
+                # If we have arguments, try to delegate to main dice roller
+                if self.main_handler:
+                    # Delegate to main handler for dice rolls
+                    result = self.main_handler.process_input(f"roll {args}")
+                    return result.get("message", "Unknown error")
+                else:
+                    # No main handler, but user tried to roll dice
+                    return "Cannot process dice rolls in this context"
+            else:
+                # No arguments - roll D&D abilities as normal
+                success, message = self.context.roll_abilities()
+                return message
 
         elif cmd == "status":
             return self.context.get_status()

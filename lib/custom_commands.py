@@ -903,8 +903,8 @@ def _create_player_command(command, game_manager, handler):
             "exit": False,
         }
 
-    # Initialize player creation handler
-    player_handler = PlayerCreationHandler(game_manager, current_game)
+    # Initialize player creation handler, passing the main handler for dice roll delegation
+    player_handler = PlayerCreationHandler(game_manager, current_game, handler)
 
     # Show welcome message
     welcome_message = (
