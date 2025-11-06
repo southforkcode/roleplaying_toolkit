@@ -16,21 +16,24 @@ def create_extended_command_handler():
     # Initialize managers
     game_manager = GameManager()
     journey_manager = JourneyManager()
-    state_manager = StateManager()
     journal_manager = JournalManager()
 
-    # If there's a current game, restore its state and journal (issue #18)
-    # This ensures journey state and journal are available on app startup
+    # Get current game and initialize StateManager with game-specific save directory
     current_game = game_manager.get_current_game()
     if current_game:
-        # Set journal path for this game
         game_path = game_manager.get_game_path(current_game)
+        
+        # Set journal path for this game
         journal_path = game_path / "journal.yaml"
         journal_manager.set_journal_path(str(journal_path))
-
+        
+        # Initialize StateManager with game-specific saves directory
+        game_saves_dir = game_path / "saves"
+        state_manager = StateManager(str(game_saves_dir))
+        
         # Load the last saved game state (from quicksave) if available
         try:
-            quicksave_path = Path("saves") / "quicksave.yaml"
+            quicksave_path = game_saves_dir / "quicksave.yaml"
             if quicksave_path.exists():
                 with open(quicksave_path, "r") as f:
                     state_data = yaml.safe_load(f)
@@ -44,6 +47,9 @@ def create_extended_command_handler():
         except (OSError, ValueError, KeyError, AttributeError):
             # If loading fails, continue with empty journey manager
             pass
+    else:
+        # No current game, use default saves directory
+        state_manager = StateManager()
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
@@ -51,12 +57,12 @@ def create_extended_command_handler():
         "status", lambda cmd: _status_command(cmd, journey_manager)
     )
     handler.register_command(
-        "save", lambda cmd: _save_command(cmd, journey_manager, state_manager)
+        "save", lambda cmd: _save_command(cmd, journey_manager, game_manager)
     )
     handler.register_command(
-        "load", lambda cmd: _load_command(cmd, journey_manager, state_manager)
+        "load", lambda cmd: _load_command(cmd, journey_manager, game_manager)
     )
-    handler.register_command("saves", lambda cmd: _saves_command(cmd, state_manager))
+    handler.register_command("saves", lambda cmd: _saves_command(cmd, game_manager))
     handler.register_command(
         "journey",
         lambda cmd: _journey_command(cmd, journey_manager, journal_manager),
@@ -81,7 +87,7 @@ def create_extended_command_handler():
         "list", lambda cmd: _list_games_command(cmd, game_manager)
     )
     handler.register_command(
-        "select", lambda cmd: _select_game_command(cmd, game_manager, journal_manager)
+        "select", lambda cmd: _select_game_command(cmd, game_manager, journey_manager, journal_manager)
     )
     handler.register_command(
         "session", lambda cmd: _session_command(cmd, game_manager)
@@ -236,9 +242,22 @@ def _status_command(command, journey_manager):
     }
 
 
-def _save_command(command, journey_manager, state_manager):
+def _save_command(command, journey_manager, game_manager):
     """Save game state to YAML file."""
     save_name = command.args[0] if command.args else "quicksave"
+
+    # Get StateManager for current game
+    current_game = game_manager.get_current_game()
+    if not current_game:
+        return {
+            "success": False,
+            "message": "No game selected. Use 'new' or 'select' to choose a game.",
+            "exit": False,
+        }
+
+    game_path = game_manager.get_game_path(current_game)
+    game_saves_dir = game_path / "saves"
+    state_manager = StateManager(str(game_saves_dir))
 
     try:
         message = state_manager.save_state(journey_manager, save_name)
@@ -247,12 +266,25 @@ def _save_command(command, journey_manager, state_manager):
         return {"success": False, "message": f"Save failed: {e}", "exit": False}
 
 
-def _load_command(command, journey_manager, state_manager):
+def _load_command(command, journey_manager, game_manager):
     """Load game state from YAML file."""
     if not command.args:
         return {"success": False, "message": "Usage: load <save_name>", "exit": False}
 
     save_name = command.args[0]
+
+    # Get StateManager for current game
+    current_game = game_manager.get_current_game()
+    if not current_game:
+        return {
+            "success": False,
+            "message": "No game selected. Use 'new' or 'select' to choose a game.",
+            "exit": False,
+        }
+
+    game_path = game_manager.get_game_path(current_game)
+    game_saves_dir = game_path / "saves"
+    state_manager = StateManager(str(game_saves_dir))
 
     try:
         # Load the new state
@@ -273,8 +305,21 @@ def _load_command(command, journey_manager, state_manager):
         return {"success": False, "message": f"Load failed: {e}", "exit": False}
 
 
-def _saves_command(command, state_manager):
+def _saves_command(command, game_manager):
     """List available save files."""
+    # Get StateManager for current game
+    current_game = game_manager.get_current_game()
+    if not current_game:
+        return {
+            "success": False,
+            "message": "No game selected. Use 'new' or 'select' to choose a game.",
+            "exit": False,
+        }
+
+    game_path = game_manager.get_game_path(current_game)
+    game_saves_dir = game_path / "saves"
+    state_manager = StateManager(str(game_saves_dir))
+
     try:
         saves = state_manager.list_saves()
         if not saves:
@@ -444,6 +489,23 @@ def _new_game_command(
         game_path = game_manager.get_game_path(game_name)
         journal_path = game_path / "journal.yaml"
         journal_manager.set_journal_path(str(journal_path))
+        # Load the game's quicksave if available
+        import yaml
+        try:
+            quicksave_path = game_path / "saves" / "quicksave.yaml"
+            if quicksave_path.exists():
+                with open(quicksave_path, "r") as f:
+                    state_data = yaml.safe_load(f)
+                if state_data and isinstance(state_data, dict):
+                    if "journey_manager" in state_data:
+                        restored_manager = JourneyManager.from_dict(
+                            state_data["journey_manager"]
+                        )
+                        # Replace journey manager's journeys with restored ones
+                        journey_manager._journeys = restored_manager._journeys
+        except (OSError, ValueError, KeyError, AttributeError):
+            # If loading fails, continue with empty journey manager
+            pass
     else:
         # Create new game
         success, message = game_manager.create_game(game_name)
@@ -499,7 +561,7 @@ def _list_games_command(command, game_manager):
     }
 
 
-def _select_game_command(command, game_manager, journal_manager):
+def _select_game_command(command, game_manager, journey_manager, journal_manager):
     """Switch to a different game.
 
     Usage: select <game_name>
@@ -530,6 +592,24 @@ def _select_game_command(command, game_manager, journal_manager):
     game_path = game_manager.get_game_path(game_name)
     journal_path = game_path / "journal.yaml"
     journal_manager.set_journal_path(str(journal_path))
+
+    # Load the game's quicksave if available
+    import yaml
+    try:
+        quicksave_path = game_path / "saves" / "quicksave.yaml"
+        if quicksave_path.exists():
+            with open(quicksave_path, "r") as f:
+                state_data = yaml.safe_load(f)
+            if state_data and isinstance(state_data, dict):
+                if "journey_manager" in state_data:
+                    restored_manager = JourneyManager.from_dict(
+                        state_data["journey_manager"]
+                    )
+                    # Replace journey manager's journeys with restored ones
+                    journey_manager._journeys = restored_manager._journeys
+    except (OSError, ValueError, KeyError, AttributeError):
+        # If loading fails, continue with empty journey manager
+        pass
 
     return {
         "success": True,

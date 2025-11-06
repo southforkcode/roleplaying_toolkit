@@ -16,9 +16,10 @@ class StateManager:
 
         Args:
             saves_directory: Directory to store save files (default: "saves")
+                            Can be a game-specific directory like "saves/game_name/saves"
         """
         self.saves_directory = Path(saves_directory)
-        self.saves_directory.mkdir(exist_ok=True)
+        self.saves_directory.mkdir(parents=True, exist_ok=True)
 
     def save_state(
         self, journey_manager: JourneyManager, save_name: str = "quicksave"
