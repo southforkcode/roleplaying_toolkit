@@ -25,7 +25,16 @@ python roleplaying_toolkit.py
 - `help` - Show available commands
 - `quit` / `exit` - Exit the application
 - `status` - Show current game status
-- `new` - Reset session (requires double confirmation)
+
+#### Game Management
+
+- `new <game_name>` - Create a new game or load an existing one
+  - Example: `new dnd_friends_of_the_obelisk`
+  - If creating a new game with unsaved changes, you'll be prompted for confirmation
+- `list` - List all available games with session counts
+- `select <game_name>` - Switch to a different game
+  - Example: `select campaign_module_1`
+- `session` - Display current game info and session status
 
 #### Journey System
 
@@ -64,6 +73,44 @@ python roleplaying_toolkit.py
 
 ## Feature Details
 
+### Multi-Game System
+
+Organize your games into separate named spaces, each with their own journeys, saves, and journal:
+
+- **Multiple Games**: Create and manage multiple independent game campaigns
+- **Game Switching**: Easily switch between different games without losing progress
+- **Unsaved Confirmation**: Get prompted when switching games with unsaved changes
+- **Game Metadata**: Track total sessions and modification dates for each game
+
+**Example Game Management Workflow:**
+
+```text
+> list
+No games found. Create one with: new <game_name>
+
+> new dnd_lost_temple
+Game 'dnd_lost_temple' created. Ready to play!
+
+> journey "Find the Entrance" 5 2
+Started journey: 'Find the Entrance' (5 steps, 2 difficulty)
+
+> new module_3_expanded
+You might have unsaved changes to the current game. Continue? (yes/no)
+> yes
+Game 'module_3_expanded' created. Ready to play!
+
+> list
+Available games:
+  1. dnd_lost_temple - 0 sessions
+  2. module_3_expanded - 0 sessions (current)
+
+> select dnd_lost_temple
+Switched to game 'dnd_lost_temple'
+
+> status
+Current Status: ... (shows the state of dnd_lost_temple, not module_3_expanded)
+```
+
 ### Journey Tracking Details
 
 Track long-term quests and adventures with the journey system:
@@ -99,26 +146,51 @@ Active Journeys:
 
 ### Persistent State Management
 
-Persistent game state with multiple save slots:
+Persistent game state with multiple save slots per game:
 
 - **YAML Format**: Human-readable save files
-- **Named Saves**: Create multiple save slots for different scenarios
+- **Per-Game Saves**: Each game maintains its own save slots
+- **Named Saves**: Create multiple save slots for different scenarios within a game
 - **Full State Restoration**: Complete journey stack and progress preserved
 - **Session Persistence**: Load games across application restarts
 
 **Example Save/Load Usage:**
 
 ```text
+> new dnd_campaign
+Game 'dnd_campaign' created. Ready to play!
+
+> journey "Battle the Dragon" 8 5
+Started journey: 'Battle the Dragon' (8 steps, 5 difficulty)
+
 > save before_boss
-Game saved as 'before_boss' at saves/before_boss.yaml
+Game saved as 'before_boss'
 
 > saves
 Available saves:
-  before_boss - 2025-11-05 06:00:08 (2 journeys)
-  quicksave - 2025-11-05 05:57:00 (0 journeys)
+  before_boss (1 journeys)
+  quicksave (0 journeys)
 
 > load before_boss
 Game loaded from 'before_boss'
+```
+
+**File Organization:**
+
+Each game stores its data in an isolated folder:
+
+```text
+saves/
+  game_dnd_campaign/
+    game.yaml           # Game metadata
+    journal.yaml        # Session journal entries
+    state.yaml          # Current game state
+    before_boss.yaml    # Named save point
+    quicksave.yaml      # Auto-save slot
+  game_module_3/
+    game.yaml
+    journal.yaml
+    ...
 ```
 
 ### Dice Rolling with Advantage/Disadvantage
@@ -201,14 +273,6 @@ Journal Entries:
 - Journal entries are saved in YAML format in `saves/journal.yaml`
 - Entries are never lost - even after closing and reopening the application
 - Future versions will support named sessions and advanced filtering
-
-### Session Management
-
-Safe session reset with confirmation:
-
-- **Double Confirmation**: Type `new` twice to reset all journeys
-- **Cancellation**: Any other command after first `new` cancels the reset
-- **State Preservation**: Accidentally typing `new` won't immediately clear your progress
 
 ## Getting Started
 
