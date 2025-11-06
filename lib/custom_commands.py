@@ -909,8 +909,8 @@ def _create_player_command(command, game_manager, handler):
     # Show welcome message
     welcome_message = (
         f"Starting player creation for game '{current_game}'.\n"
-        "Type 'help' for available commands.\n\n"
-        "Enter player name: "
+        "Type 'help' for available commands.\n"
+        "Name of new player?"
     )
 
     return {

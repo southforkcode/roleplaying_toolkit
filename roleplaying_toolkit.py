@@ -11,19 +11,29 @@ def main():
 
     command_handler = create_extended_command_handler()
     current_context = None  # Track the current context handler
+    context_name = None  # Track the name of the current context
 
     exit_flag = False
 
     while not exit_flag:
         try:
-            # Get user input
-            user_input = input("> ").strip()
+            # Get user input with appropriate prompt
+            if current_context is not None:
+                prompt = f"{context_name}> "
+            else:
+                prompt = "> "
+
+            user_input = input(prompt).strip()
 
             # If in a context, use the context handler; otherwise use main handler
             if current_context is not None:
                 # Use the context's handle method
                 result_message = current_context.handle(user_input)
-                print(result_message)
+
+                # Prefix the response with context name
+                if result_message:
+                    formatted_message = f"{context_name}: {result_message}"
+                    print(formatted_message)
 
                 # Check if context has been cleared (player saved/exited)
                 if (hasattr(current_context, 'context')
@@ -32,6 +42,7 @@ def main():
                     if ("Exited player creation" in result_message
                             or "Saved player" in result_message):
                         current_context = None
+                        context_name = None
             else:
                 # Process the command normally
                 result = command_handler.process_input(user_input)
@@ -43,6 +54,12 @@ def main():
                 # Check if result indicates we're entering a context
                 if result.get("context") is not None:
                     current_context = result["context"]
+                    # Determine context name
+                    if hasattr(current_context, 'context'):
+                        # It's a PlayerCreationHandler
+                        context_name = "create_player"
+                    else:
+                        context_name = "context"
 
                 # Check if we should exit
                 if result.get("exit", False):
