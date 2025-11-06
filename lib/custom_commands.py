@@ -10,6 +10,7 @@ from lib.game_manager import GameManager
 
 def create_extended_command_handler():
     """Create a command handler with additional custom commands."""
+    import yaml
     handler = CommandHandler()
 
     # Initialize managers
@@ -18,12 +19,31 @@ def create_extended_command_handler():
     state_manager = StateManager()
     journal_manager = JournalManager()
 
-    # If there's a current game, set the journal path to that game's journal
+    # If there's a current game, restore its state and journal (issue #18)
+    # This ensures journey state and journal are available on app startup
     current_game = game_manager.get_current_game()
     if current_game:
+        # Set journal path for this game
         game_path = game_manager.get_game_path(current_game)
         journal_path = game_path / "journal.yaml"
         journal_manager.set_journal_path(str(journal_path))
+
+        # Load the last saved game state (from quicksave) if available
+        try:
+            quicksave_path = Path("saves") / "quicksave.yaml"
+            if quicksave_path.exists():
+                with open(quicksave_path, "r") as f:
+                    state_data = yaml.safe_load(f)
+                if state_data and isinstance(state_data, dict):
+                    if "journey_manager" in state_data:
+                        restored_manager = JourneyManager.from_dict(
+                            state_data["journey_manager"]
+                        )
+                        # Replace journey manager's journeys with restored ones
+                        journey_manager._journeys = restored_manager._journeys
+        except (OSError, ValueError, KeyError, AttributeError):
+            # If loading fails, continue with empty journey manager
+            pass
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
