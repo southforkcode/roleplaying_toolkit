@@ -20,10 +20,8 @@ class Player:
         self.created_at = datetime.now().isoformat()
         self.updated_at = datetime.now().isoformat()
 
-        # Initialize all ability scores to default (10)
+        # Initialize ability scores as empty dict - user must set them explicitly
         self.stats: Dict[str, int] = {}
-        for ability in ABILITY_SCORES:
-            self.stats[ability] = ABILITY_SCORES[ability]["default"]
 
     def set_ability(self, ability_name: str, value: int) -> tuple[bool, str]:
         """Set an ability score to a specific value.

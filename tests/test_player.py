@@ -18,11 +18,13 @@ class TestPlayer:
         assert player.updated_at is not None
 
     def test_player_default_stats(self):
-        """Test that new player has default stats."""
+        """Test that new player has no pre-initialized stats."""
         player = Player("Jackbar")
-        # All stats should start at default (10)
+        # Stats should be empty until explicitly set
+        assert len(player.stats) == 0
+        # All abilities should be None until set
         for ability in ABILITY_SCORES:
-            assert player.stats[ability] == 10
+            assert player.get_ability(ability) is None
 
     def test_set_ability_valid(self):
         """Test setting a valid ability score."""
@@ -65,7 +67,8 @@ class TestPlayer:
         player = Player("Jackbar")
         player.set_ability("strength", 14)
         assert player.get_ability("strength") == 14
-        assert player.get_ability("dexterity") == 10  # Default
+        # Unset abilities should return None, not default
+        assert player.get_ability("dexterity") is None
         assert player.get_ability("invalid") is None
 
     def test_player_serialization(self):

@@ -98,10 +98,11 @@ class PlayerCreationContext:
 
         lines = [f"Player: {self.player.name}"]
 
-        # Add ability scores
+        # Add ability scores (only show abilities that have been set)
         for ability, config in ABILITY_SCORES.items():
             score = self.player.get_ability(ability)
-            lines.append(f"  {config['display']}: {score}")
+            if score is not None:
+                lines.append(f"  {config['display']}: {score}")
 
         if self.player.race:
             lines.append(f"Race: {self.player.race}")

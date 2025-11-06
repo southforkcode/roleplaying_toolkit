@@ -242,15 +242,16 @@ def _status_command(command, journey_manager, game_manager):
             status_lines.append(f"\nParty Members ({player_count}):")
             players = player_manager.get_all_players()
             for i, player in enumerate(players, 1):
-                # Build ability abbreviations (STR, DEX, CON, INT, WIS, CHA)
+                # Build ability abbreviations (only show set abilities)
                 ability_abbrev = []
                 for ability in ['strength', 'dexterity', 'constitution',
                                 'intelligence', 'wisdom', 'charisma']:
                     score = player.get_ability(ability)
-                    short = ABILITY_SCORES[ability]['short']
-                    ability_abbrev.append(f"{short}:{score}")
+                    if score is not None:  # Only show abilities that have been set
+                        short = ABILITY_SCORES[ability]['short']
+                        ability_abbrev.append(f"{short}:{score}")
                 
-                abilities_str = " ".join(ability_abbrev)
+                abilities_str = " ".join(ability_abbrev) if ability_abbrev else "(no abilities set)"
                 class_str = f"({player.class_type})" if player.class_type else "(no class)"
                 status_lines.append(
                     f"  {i}. {player.name} {class_str}\n"
