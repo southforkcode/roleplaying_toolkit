@@ -13,14 +13,24 @@ class JournalManager:
         """Initialize the journal manager.
 
         Args:
-            journal_path: Path to the journal YAML file
+            journal_path: Path to the journal YAML file (can be per-game or root)
+        """
+        self.journal_path = journal_path
+        self._ensure_directory_exists()
+        self._load_journal()
+
+    def set_journal_path(self, journal_path: str) -> None:
+        """Change the journal path and reload entries.
+
+        Args:
+            journal_path: New path to the journal YAML file
         """
         self.journal_path = journal_path
         self._ensure_directory_exists()
         self._load_journal()
 
     def _ensure_directory_exists(self):
-        """Ensure the saves directory exists."""
+        """Ensure the directory for the journal file exists."""
         Path(self.journal_path).parent.mkdir(parents=True, exist_ok=True)
 
     def _load_journal(self):

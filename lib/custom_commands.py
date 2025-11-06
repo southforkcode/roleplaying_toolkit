@@ -1,19 +1,29 @@
 """Example of extending the command handler with custom commands."""
 
+from pathlib import Path
 from lib.command_handler import CommandHandler
 from lib.journey_system import JourneyManager
 from lib.state_manager import StateManager
 from lib.journal_manager import JournalManager
+from lib.game_manager import GameManager
 
 
 def create_extended_command_handler():
     """Create a command handler with additional custom commands."""
     handler = CommandHandler()
 
-    # Initialize journey manager, state manager, and journal manager
+    # Initialize managers
+    game_manager = GameManager()
     journey_manager = JourneyManager()
     state_manager = StateManager()
     journal_manager = JournalManager()
+
+    # If there's a current game, set the journal path to that game's journal
+    current_game = game_manager.get_current_game()
+    if current_game:
+        game_path = game_manager.get_game_path(current_game)
+        journal_path = game_path / "journal.yaml"
+        journal_manager.set_journal_path(str(journal_path))
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
@@ -39,10 +49,22 @@ def create_extended_command_handler():
         "stop",
         lambda cmd: _stop_journey_command(cmd, journey_manager, journal_manager),
     )
-    # Register new session command with confirmation flow
+    # Register new game command with confirmation flow
     handler.register_command(
         "new",
-        lambda cmd: _new_command(cmd, journey_manager, journal_manager, handler),
+        lambda cmd: _new_game_command(
+            cmd, game_manager, journey_manager, journal_manager, handler
+        ),
+    )
+    # Register game management commands
+    handler.register_command(
+        "list", lambda cmd: _list_games_command(cmd, game_manager)
+    )
+    handler.register_command(
+        "select", lambda cmd: _select_game_command(cmd, game_manager, journal_manager)
+    )
+    handler.register_command(
+        "session", lambda cmd: _session_command(cmd, game_manager)
     )
     # Register fate command for decision making
     handler.register_command("fate", _fate_command)
@@ -333,51 +355,206 @@ def _journey_command(command, journey_manager, journal_manager=None):
         }
 
 
-def _new_command(command, journey_manager, journal_manager, handler):
-    """Reset session state if user confirms by typing 'new' twice.
+def _new_game_command(
+    command, game_manager, journey_manager, journal_manager, handler
+):
+    """Start a new game.
 
     Behavior:
-    - If there are no active journeys, perform a no-op reset and inform the user.
-    - If there are active journeys and this is the first 'new', ask for confirmation
-      and set handler._pending_new = True.
-    - If handler._pending_new is True and the user types 'new' again, clear all
-      journeys and reset the confirmation flag.
-    - Also clears the journal when resetting the session.
+    - `new <game_name>` starts a new game
+    - If current game has unsaved changes, prompt for confirmation
+    - If confirmed: reset current game to new initial state
+    - If not confirmed: ignore the request
     """
-    # If no journeys are active, clear and return a message (no confirmation needed)
-    if not journey_manager.has_active_journeys():
-        # Ensure any pending flag is cleared
-        if hasattr(handler, "_pending_new"):
-            handler._pending_new = False
-        # Clear the journal as well
-        if journal_manager:
-            journal_manager.clear_journal()
+    # Handle case where no game name provided
+    if not command.args or len(command.args) < 1:
         return {
-            "success": True,
-            "message": "Session reset (no active journeys) and journal cleared.",
+            "success": False,
+            "message": "Usage: new <game_name>\nExample: new dnd_friends_of_the_obelisk",
             "exit": False,
         }
 
-    # If confirmation pending and user typed 'new' again -> perform reset
-    if hasattr(handler, "_pending_new") and handler._pending_new:
+    game_name = command.args[0]
+
+    # Check if we need to confirm unsaved changes
+    current_game = game_manager.get_current_game()
+    game_info = (
+        game_manager.get_game_info(current_game) if current_game else None
+    )
+    has_unsaved = (
+        game_info and game_info.get("current_session_unsaved", False)
+    )
+
+    # If there are unsaved changes and this is not a confirmed request
+    if has_unsaved and not hasattr(handler, "_pending_new_game"):
+        handler._pending_new_game = True
+        handler._pending_new_game_name = game_name
+        return {
+            "success": True,
+            "message": "You might have unsaved changes to the current game. Continue? (yes/no)",
+            "exit": False,
+        }
+
+    # Check for "yes" confirmation
+    if hasattr(handler, "_pending_new_game") and handler._pending_new_game:
+        if command.raw_input.strip().lower() != "yes":
+            handler._pending_new_game = False
+            return {
+                "success": True,
+                "message": "You did not confirm. Ignoring the request for a new game.",
+                "exit": False,
+            }
+        # User confirmed, proceed with new game
+        game_name = handler._pending_new_game_name
+        handler._pending_new_game = False
+        handler._pending_new_game_name = None
+
+    # Try to create or load the game
+    games = game_manager.list_games()
+    if game_name in games:
+        # Load existing game
+        success, message = game_manager.load_game(game_name)
+        if not success:
+            return {"success": False, "message": message, "exit": False}
+        # Mark game as saved (fresh load)
+        game_manager.update_game_metadata(game_name, current_session_unsaved=False)
+        # Clear journeys for new session but reload the game's journal
         journey_manager.stop_all_journeys()
-        # Clear the journal as well
-        if journal_manager:
-            journal_manager.clear_journal()
-        handler._pending_new = False
-        return {
-            "success": True,
-            "message": "Session reset. All journeys cleared and journal reset.",
-            "exit": False,
-        }
-
-    # Otherwise, set pending confirmation and prompt the user
-    if hasattr(handler, "_pending_new"):
-        handler._pending_new = True
+        # Set journal path to game's journal
+        game_path = game_manager.get_game_path(game_name)
+        journal_path = game_path / "journal.yaml"
+        journal_manager.set_journal_path(str(journal_path))
+    else:
+        # Create new game
+        success, message = game_manager.create_game(game_name)
+        if not success:
+            return {"success": False, "message": message, "exit": False}
+        # Clear journeys and reset journal for new game
+        journey_manager.stop_all_journeys()
+        journal_manager.clear_journal()
+        # Set journal path to game's journal
+        game_path = game_manager.get_game_path(game_name)
+        journal_path = game_path / "journal.yaml"
+        journal_manager.set_journal_path(str(journal_path))
 
     return {
         "success": True,
-        "message": "Type 'new' again to confirm resetting the session.",
+        "message": f"Game '{game_name}' loaded/created. Ready to play!",
+        "exit": False,
+    }
+
+
+def _list_games_command(command, game_manager):
+    """List all available games.
+
+    Usage: list
+    """
+    games = game_manager.list_games()
+
+    if not games:
+        return {
+            "success": True,
+            "message": "No games found. Create one with: new <game_name>",
+            "exit": False,
+        }
+
+    current = game_manager.get_current_game()
+    lines = ["Available games:"]
+
+    for i, game_name in enumerate(games, 1):
+        info = game_manager.get_game_info(game_name)
+        if info:
+            sessions = info.get("total_sessions", 0)
+            current_marker = " (current)" if game_name == current else ""
+            lines.append(
+                f"  {i}. {game_name} - {sessions} sessions{current_marker}"
+            )
+        else:
+            lines.append(f"  {i}. {game_name}")
+
+    return {
+        "success": True,
+        "message": "\n".join(lines),
+        "exit": False,
+    }
+
+
+def _select_game_command(command, game_manager, journal_manager):
+    """Switch to a different game.
+
+    Usage: select <game_name>
+    Example: select dnd_friends
+    """
+    if not command.args or len(command.args) < 1:
+        games = game_manager.list_games()
+        if not games:
+            return {
+                "success": False,
+                "message": "No games available. Create one with: new <game_name>",
+                "exit": False,
+            }
+        games_list = ", ".join(games)
+        return {
+            "success": False,
+            "message": f"Usage: select <game_name>\nAvailable: {games_list}",
+            "exit": False,
+        }
+
+    game_name = command.args[0]
+    success, message = game_manager.set_current_game(game_name)
+
+    if not success:
+        return {"success": False, "message": message, "exit": False}
+
+    # Update journal path to the selected game's journal
+    game_path = game_manager.get_game_path(game_name)
+    journal_path = game_path / "journal.yaml"
+    journal_manager.set_journal_path(str(journal_path))
+
+    return {
+        "success": True,
+        "message": f"Switched to game '{game_name}'",
+        "exit": False,
+    }
+
+
+def _session_command(command, game_manager):
+    """Show current game session information.
+
+    Usage: session
+    """
+    current = game_manager.get_current_game()
+
+    if not current:
+        return {
+            "success": True,
+            "message": "No game loaded. Create one with: new <game_name>",
+            "exit": False,
+        }
+
+    info = game_manager.get_game_info(current)
+
+    if not info:
+        return {
+            "success": False,
+            "message": f"Could not load info for game '{current}'",
+            "exit": False,
+        }
+
+    unsaved_status = "Yes" if info.get("current_session_unsaved") else "No"
+    sessions = info.get("total_sessions", 0)
+
+    message = (
+        f"Current Game: {info['name']}\n"
+        f"  Created: {info.get('created_at', 'unknown')}\n"
+        f"  Last Modified: {info.get('last_modified', 'unknown')}\n"
+        f"  Total Sessions: {sessions}\n"
+        f"  Unsaved Changes: {unsaved_status}"
+    )
+
+    return {
+        "success": True,
+        "message": message,
         "exit": False,
     }
 

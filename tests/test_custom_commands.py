@@ -1,9 +1,12 @@
 """Tests for custom command extensions."""
 
 import unittest
+import shutil
+from pathlib import Path
 from unittest.mock import patch
 from lib.custom_commands import create_extended_command_handler
 from lib.journal_manager import JournalManager
+from lib.game_manager import GameManager
 
 
 class TestCustomCommands(unittest.TestCase):
@@ -11,6 +14,26 @@ class TestCustomCommands(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        # Clean up any saved games from previous tests
+        saves_dir = Path("saves")
+        
+        # Remove game directories
+        for game_dir in saves_dir.glob("game_*"):
+            shutil.rmtree(game_dir, ignore_errors=True)
+        
+        # Remove save files (except journal which is per-game now)
+        for save_file in saves_dir.glob("*.yaml"):
+            if not save_file.name.startswith("game_"):
+                try:
+                    save_file.unlink()
+                except OSError:
+                    pass
+        
+        # Clean up .current_game state file
+        current_file = saves_dir / ".current_game"
+        if current_file.exists():
+            current_file.unlink()
+        
         self.handler = create_extended_command_handler()
         # Clear journal for each test to avoid cross-test pollution
         journal_manager = JournalManager()
@@ -235,43 +258,24 @@ class TestCustomCommands(unittest.TestCase):
         self.assertIn("Usage: load <save_name>", result["message"])
         self.assertFalse(result["exit"])
 
-    def test_new_command_confirm_resets(self):
-        """Typing 'new' twice should reset the session state."""
-        # Start a journey
-        self.handler.process_input('journey "Temp Quest" 3 1')
-        status_before = self.handler.process_input("status")
-        self.assertIn("Temp Quest", status_before["message"])
+    def test_new_game_command_creates_game(self):
+        """Test that new <game_name> creates a new game."""
+        result = self.handler.process_input("new my_adventure")
+        self.assertTrue(result["success"])
+        self.assertIn("loaded/created", result["message"])
+        self.assertIn("my_adventure", result["message"])
 
-        # First 'new' asks for confirmation
-        first = self.handler.process_input("new")
-        self.assertTrue(first["success"])
-        self.assertIn("Type 'new' again to confirm", first["message"])
+    def test_new_game_command_invalid_name(self):
+        """Test that new command rejects invalid game names."""
+        result = self.handler.process_input("new invalid@name")
+        self.assertFalse(result["success"])
+        self.assertIn("can only contain", result["message"])
 
-        # Second 'new' performs reset
-        second = self.handler.process_input("new")
-        self.assertTrue(second["success"])
-        self.assertIn("Session reset", second["message"])
-
-        # Status should not include the previous journey
-        status_after = self.handler.process_input("status")
-        self.assertNotIn("Temp Quest", status_after["message"]) 
-
-    def test_new_command_cancelled_by_other(self):
-        """Typing 'new' then another command should cancel confirmation."""
-        # Start a journey
-        self.handler.process_input('journey "Keep Quest" 4 2')
-
-        # First 'new' asks for confirmation
-        first = self.handler.process_input("new")
-        self.assertIn("Type 'new' again to confirm", first["message"])
-
-        # Now run a different command which should cancel pending confirmation
-        other = self.handler.process_input("status")
-        self.assertTrue(other["success"])
-
-        # If we type 'new' now, it should ask for confirmation again (not reset immediately)
-        again = self.handler.process_input("new")
-        self.assertIn("Type 'new' again to confirm", again["message"])
+    def test_new_game_command_no_args(self):
+        """Test that new command requires game name."""
+        result = self.handler.process_input("new")
+        self.assertFalse(result["success"])
+        self.assertIn("Usage:", result["message"])
 
     def test_fate_two_options(self):
         """Test fate command with two options."""
@@ -449,30 +453,83 @@ class TestCustomCommands(unittest.TestCase):
             self.assertEqual(len(entries), 1)
             self.assertEqual(entries[0]["description"], "Test entry 1")
 
-    def test_new_command_clears_journal(self):
-        """Test that session reset clears journal entries."""
-        # Start a journey and make progress to create journal entries
-        self.handler.process_input('journey "Clear Quest" 5 2')
+    def test_new_game_clears_journal(self):
+        """Test that creating a new game clears journal entries."""
+        # Create first game and add journal entries
+        self.handler.process_input("new game1")
+        self.handler.process_input('journey "Quest One" 5 2')
         self.handler.process_input("progress 2")
 
         # Verify journal has entries
         result = self.handler.process_input("journal")
         self.assertTrue(result["success"])
-        self.assertIn("Clear Quest", result["message"])
+        self.assertIn("Quest One", result["message"])
 
-        # Reset session (first new)
-        first = self.handler.process_input("new")
-        self.assertIn("Type 'new' again", first["message"])
-
-        # Confirm reset (second new)
-        second = self.handler.process_input("new")
-        self.assertIn("Session reset", second["message"])
-        self.assertIn("journal reset", second["message"].lower())
+        # Create new game - should clear journal
+        self.handler.process_input("new game2")
 
         # Verify journal is now empty
         result = self.handler.process_input("journal")
         self.assertTrue(result["success"])
         self.assertIn("empty", result["message"].lower())
+
+    def test_list_games_empty(self):
+        """Test list command when no games exist."""
+        result = self.handler.process_input("list")
+        self.assertTrue(result["success"])
+        self.assertIn("No games", result["message"])
+
+    def test_list_games_with_games(self):
+        """Test list command with existing games."""
+        self.handler.process_input("new game_one")
+        self.handler.process_input("new game_two")
+        self.handler.process_input("new game_three")
+
+        result = self.handler.process_input("list")
+        self.assertTrue(result["success"])
+        self.assertIn("game_one", result["message"])
+        self.assertIn("game_two", result["message"])
+        self.assertIn("game_three", result["message"])
+        self.assertIn("current", result["message"].lower())
+
+    def test_select_game_command(self):
+        """Test switching between games."""
+        self.handler.process_input("new game_alpha")
+        self.handler.process_input("new game_beta")
+
+        result = self.handler.process_input("select game_alpha")
+        self.assertTrue(result["success"])
+        self.assertIn("game_alpha", result["message"])
+
+    def test_select_game_nonexistent(self):
+        """Test selecting non-existent game fails."""
+        result = self.handler.process_input("select nonexistent_game")
+        self.assertFalse(result["success"])
+        self.assertIn("not found", result["message"])
+
+    def test_select_game_no_args(self):
+        """Test select command requires game name."""
+        self.handler.process_input("new test_game")
+        result = self.handler.process_input("select")
+        self.assertFalse(result["success"])
+        self.assertIn("Usage:", result["message"])
+
+    def test_session_command(self):
+        """Test session command shows game info."""
+        self.handler.process_input("new test_game")
+        result = self.handler.process_input("session")
+
+        self.assertTrue(result["success"])
+        self.assertIn("test_game", result["message"])
+        self.assertIn("Created:", result["message"])
+        self.assertIn("Sessions:", result["message"])
+        self.assertIn("Unsaved", result["message"])
+
+    def test_session_command_no_game(self):
+        """Test session command with no game loaded."""
+        result = self.handler.process_input("session")
+        self.assertTrue(result["success"])
+        self.assertIn("No game", result["message"])
 
 
 if __name__ == "__main__":
