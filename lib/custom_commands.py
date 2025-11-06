@@ -16,16 +16,14 @@ def create_extended_command_handler():
     # Initialize managers
     game_manager = GameManager()
     journey_manager = JourneyManager()
-    journal_manager = JournalManager()
 
-    # Get current game and load its state
+    # Get current game and set up journal manager with game-specific path
     current_game = game_manager.get_current_game()
     if current_game:
         game_path = game_manager.get_game_path(current_game)
-        
-        # Set journal path for this game
+        # Initialize journal manager with current game's journal
         journal_path = game_path / "journal.yaml"
-        journal_manager.set_journal_path(str(journal_path))
+        journal_manager = JournalManager(str(journal_path))
         
         # Load the last saved game state (from quicksave) if available
         try:
@@ -44,6 +42,10 @@ def create_extended_command_handler():
         except (OSError, ValueError, KeyError, AttributeError):
             # If loading fails, continue with empty journey manager
             pass
+    else:
+        # No current game - use a placeholder journal that won't create root-level file
+        # We'll set the proper path when a game is selected
+        journal_manager = JournalManager("saves/.journal_placeholder")
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
