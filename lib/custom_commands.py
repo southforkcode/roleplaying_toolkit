@@ -6,6 +6,7 @@ from lib.journey_system import JourneyManager
 from lib.state_manager import StateManager
 from lib.journal_manager import JournalManager
 from lib.game_manager import GameManager
+from lib.player_context import PlayerCreationHandler
 
 
 def create_extended_command_handler():
@@ -50,7 +51,7 @@ def create_extended_command_handler():
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
     handler.register_command(
-        "status", lambda cmd: _status_command(cmd, journey_manager)
+        "status", lambda cmd: _status_command(cmd, journey_manager, game_manager)
     )
     handler.register_command(
         "save", lambda cmd: _save_command(cmd, journey_manager, game_manager)
@@ -93,6 +94,11 @@ def create_extended_command_handler():
     # Register journal command to view entries
     handler.register_command(
         "journal", lambda cmd: _journal_command(cmd, journal_manager)
+    )
+    # Register player creation command
+    handler.register_command(
+        "create_player",
+        lambda cmd: _create_player_command(cmd, game_manager, handler),
     )
 
     return handler
@@ -212,8 +218,10 @@ def _roll_dice_command(command):
         }
 
 
-def _status_command(command, journey_manager):
+def _status_command(command, journey_manager, game_manager):
     """Show current game status."""
+    from lib.player_manager import PlayerManager
+
     status_lines = [
         "Current Status:",
         "  Health: 100/100",
@@ -221,6 +229,19 @@ def _status_command(command, journey_manager):
         "  Level: 1",
         "  Location: Starting Town",
     ]
+
+    # Add player information if game is selected
+    current_game = game_manager.get_current_game()
+    if current_game:
+        game_path = game_manager.get_game_path(current_game)
+        player_manager = PlayerManager(game_path)
+        player_count = player_manager.get_player_count()
+
+        if player_count > 0:
+            status_lines.append(f"\nParty Members ({player_count}):")
+            players = player_manager.get_all_players()
+            for i, player in enumerate(players, 1):
+                status_lines.append(f"  {i}. {player.name} (no class)")
 
     # Add journey information if there are active journeys
     if journey_manager.has_active_journeys():
@@ -868,4 +889,34 @@ def _journal_command(command, journal_manager):
         "success": True,
         "message": message,
         "exit": False,
+    }
+
+
+def _create_player_command(command, game_manager, handler):
+    """Create a new player character in the current game."""
+    current_game = game_manager.get_current_game()
+
+    if not current_game:
+        return {
+            "success": False,
+            "message": "No game selected. Use 'select <game_name>' to select a game first.",
+            "exit": False,
+        }
+
+    # Initialize player creation handler
+    player_handler = PlayerCreationHandler(game_manager, current_game)
+
+    # Show welcome message
+    welcome_message = (
+        f"Starting player creation for game '{current_game}'.\n"
+        "Type 'help' for available commands.\n\n"
+        "Enter player name: "
+    )
+
+    return {
+        "success": True,
+        "message": welcome_message,
+        "exit": False,
+        "context": player_handler,  # Store context for next iteration
+        "mode": "player_creation",  # Signal we're entering player creation mode
     }
