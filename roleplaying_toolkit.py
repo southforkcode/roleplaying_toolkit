@@ -12,6 +12,7 @@ def main():
     command_handler = create_extended_command_handler()
     current_context = None  # Track the current context handler
     context_name = None  # Track the name of the current context
+    context_mode = None  # Track the mode (player_creation, template_player_creation, etc)
 
     exit_flag = False
 
@@ -27,6 +28,25 @@ def main():
 
             # If in a context, use the context handler; otherwise use main handler
             if current_context is not None:
+                # Handle special 'save' command for template-based creation
+                if (user_input.lower() == "save" 
+                        and context_mode == "template_player_creation"):
+                    # Save template-created player
+                    from lib.game_manager import GameManager
+                    game_manager = GameManager()
+                    current_game = game_manager.get_current_game()
+                    success, message = current_context.save_player(
+                        game_manager, current_game
+                    )
+                    if success:
+                        print(f"{context_name}: {message}")
+                        current_context = None
+                        context_name = None
+                        context_mode = None
+                    else:
+                        print(f"{context_name}: {message}")
+                    continue
+
                 # Use the context's handle method
                 result_message = current_context.handle(user_input)
 
@@ -43,6 +63,14 @@ def main():
                             or "Saved player" in result_message):
                         current_context = None
                         context_name = None
+                        context_mode = None
+
+                # Check for cancellation in template mode
+                if (context_mode == "template_player_creation" 
+                        and "cancelled" in result_message.lower()):
+                    current_context = None
+                    context_name = None
+                    context_mode = None
             else:
                 # Process the command normally
                 result = command_handler.process_input(user_input)
@@ -54,9 +82,16 @@ def main():
                 # Check if result indicates we're entering a context
                 if result.get("context") is not None:
                     current_context = result["context"]
-                    # Determine context name
-                    if hasattr(current_context, 'context'):
-                        # It's a PlayerCreationHandler
+                    context_mode = result.get("mode", "unknown")
+                    
+                    # Determine context name based on mode
+                    if context_mode == "template_player_creation":
+                        template_name = getattr(current_context, 'template', None)
+                        if template_name and hasattr(template_name, 'name'):
+                            context_name = f"create_player:{template_name.name}"
+                        else:
+                            context_name = "create_player:template"
+                    elif context_mode == "player_creation":
                         context_name = "create_player"
                     else:
                         context_name = "context"

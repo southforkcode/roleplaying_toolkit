@@ -7,6 +7,8 @@ from lib.state_manager import StateManager
 from lib.journal_manager import JournalManager
 from lib.game_manager import GameManager
 from lib.player_context import PlayerCreationHandler
+from lib.template_loader import TemplateLoader
+from lib.template_player_context import TemplatePlayerCreationHandler
 
 
 def create_extended_command_handler():
@@ -108,6 +110,16 @@ def create_extended_command_handler():
     handler.register_command(
         "no",
         lambda cmd: _confirmation_command(cmd, "no", game_manager, journey_manager, journal_manager, handler)
+    )
+    
+    # Register template commands
+    handler.register_command(
+        "list_templates",
+        lambda cmd: _list_templates_command(cmd)
+    )
+    handler.register_command(
+        "show_template",
+        lambda cmd: _show_template_command(cmd)
     )
 
     return handler
@@ -994,7 +1006,41 @@ def _create_player_command(command, game_manager, handler):
             "exit": False,
         }
 
-    # Initialize player creation handler, passing the main handler for dice roll delegation
+    # Check if a template was specified
+    parts = command.split(maxsplit=1)
+    template_name = parts[1] if len(parts) > 1 else None
+
+    if template_name:
+        # Load template-based player creation
+        templates_dir = Path(__file__).parent.parent / "templates" / "player"
+        template_loader = TemplateLoader(str(templates_dir))
+
+        template = template_loader.load_template(template_name)
+        if not template:
+            available = ", ".join(template_loader.list_templates()) or "none"
+            return {
+                "success": False,
+                "message": (
+                    f"Template '{template_name}' not found.\n"
+                    f"Available templates: {available}"
+                ),
+                "exit": False,
+            }
+
+        # Initialize template-based player creation handler
+        player_handler = TemplatePlayerCreationHandler(
+            template, game_manager, handler
+        )
+
+        return {
+            "success": True,
+            "message": player_handler.get_welcome_message(),
+            "exit": False,
+            "context": player_handler,
+            "mode": "template_player_creation",
+        }
+
+    # Default player creation (non-template)
     player_handler = PlayerCreationHandler(game_manager, current_game, handler)
 
     # Show welcome message
@@ -1010,4 +1056,83 @@ def _create_player_command(command, game_manager, handler):
         "exit": False,
         "context": player_handler,  # Store context for next iteration
         "mode": "player_creation",  # Signal we're entering player creation mode
+    }
+
+
+def _list_templates_command(command):
+    """List available player creation templates."""
+    from pathlib import Path
+    templates_dir = Path(__file__).parent.parent / "templates" / "player"
+    loader = TemplateLoader(str(templates_dir))
+
+    templates = loader.list_templates()
+
+    if not templates:
+        return {
+            "success": True,
+            "message": "No player creation templates found.",
+            "exit": False,
+        }
+
+    lines = ["Available player creation templates:"]
+    for template_name in templates:
+        info = loader.get_template_info(template_name)
+        if info:
+            lines.append(
+                f"  {template_name}: {info['name']} (v{info['version']}) "
+                f"- {info['steps']} steps"
+            )
+
+    return {
+        "success": True,
+        "message": "\n".join(lines) + "\n\nUse 'create_player <template_name>' to start.",
+        "exit": False,
+    }
+
+
+def _show_template_command(command):
+    """Show details about a specific template."""
+    from pathlib import Path
+    if not command.args:
+        return {
+            "success": False,
+            "message": "Usage: show_template <template_name>",
+            "exit": False,
+        }
+
+    template_name = command.args[0]
+    templates_dir = Path(__file__).parent.parent / "templates" / "player"
+    loader = TemplateLoader(str(templates_dir))
+
+    template = loader.load_template(template_name)
+    if not template:
+        available = ", ".join(loader.list_templates()) or "none"
+        return {
+            "success": False,
+            "message": (
+                f"Template '{template_name}' not found.\n"
+                f"Available: {available}"
+            ),
+            "exit": False,
+        }
+
+    lines = [
+        f"Template: {template.name}",
+        f"Version: {template.version}",
+        f"Description: {template.description}",
+        f"Steps: {template.step_count()}",
+        "",
+        "Steps:",
+    ]
+
+    for i, step in enumerate(template.steps, 1):
+        lines.append(f"  {i}. {step.id} ({step.type})")
+        lines.append(f"     Prompt: {step.prompt}")
+        if step.macros_enabled:
+            lines.append("     Macros: @roll, @roll-top, @sum enabled")
+
+    return {
+        "success": True,
+        "message": "\n".join(lines),
+        "exit": False,
     }
