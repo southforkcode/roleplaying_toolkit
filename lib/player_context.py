@@ -142,6 +142,7 @@ class PlayerCreationHandler:
         self.context = PlayerCreationContext(game_manager, game_name)
         self.game_manager = game_manager
         self.game_name = game_name
+        self.awaiting_name = True  # Track if we're waiting for a name input
 
     def handle(self, command: str) -> str:
         """Handle a player creation command.
@@ -156,6 +157,17 @@ class PlayerCreationHandler:
         if not command:
             return "Enter a command or type 'help' for available commands"
 
+        # If we're waiting for a name and this doesn't look like a command,
+        # treat it as a name
+        if self.awaiting_name and not any(
+            command.lower().startswith(c)
+            for c in ["name", "set", "roll", "status", "save", "help", "exit"]
+        ):
+            success, message = self.context.set_player_name(command)
+            if success:
+                self.awaiting_name = False
+            return message
+
         parts = command.split(maxsplit=1)
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
@@ -164,6 +176,8 @@ class PlayerCreationHandler:
             if not args:
                 return "Usage: name <player_name>"
             success, message = self.context.set_player_name(args)
+            if success:
+                self.awaiting_name = False
             return message
 
         elif cmd == "set":

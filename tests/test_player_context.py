@@ -183,6 +183,16 @@ class TestPlayerCreationHandler:
         response = handler.handle("invalid_command")
         assert "Unknown command" in response or "invalid" in response.lower()
 
+    def test_handle_plain_name_input(self, game_manager):
+        """Test handling plain name input without 'name' command prefix."""
+        handler = PlayerCreationHandler(game_manager, "test_game")
+        # Just type a name directly
+        response = handler.handle("Aragorn")
+        assert "Created player" in response
+        assert handler.context.player is not None
+        assert handler.context.player.name == "Aragorn"
+        assert handler.awaiting_name is False
+
     def test_handle_help_command(self, game_manager):
         """Test handling help command."""
         handler = PlayerCreationHandler(game_manager, "test_game")
