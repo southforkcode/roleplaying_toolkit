@@ -1,5 +1,6 @@
 """Example of extending the command handler with custom commands."""
 
+from pathlib import Path
 from lib.command_handler import CommandHandler
 from lib.journey_system import JourneyManager
 from lib.state_manager import StateManager
@@ -16,6 +17,13 @@ def create_extended_command_handler():
     journey_manager = JourneyManager()
     state_manager = StateManager()
     journal_manager = JournalManager()
+
+    # If there's a current game, set the journal path to that game's journal
+    current_game = game_manager.get_current_game()
+    if current_game:
+        game_path = game_manager.get_game_path(current_game)
+        journal_path = game_path / "journal.yaml"
+        journal_manager.set_journal_path(str(journal_path))
 
     # Register custom commands
     handler.register_command("roll", _roll_dice_command)
@@ -53,7 +61,7 @@ def create_extended_command_handler():
         "list", lambda cmd: _list_games_command(cmd, game_manager)
     )
     handler.register_command(
-        "select", lambda cmd: _select_game_command(cmd, game_manager)
+        "select", lambda cmd: _select_game_command(cmd, game_manager, journal_manager)
     )
     handler.register_command(
         "session", lambda cmd: _session_command(cmd, game_manager)
@@ -410,17 +418,24 @@ def _new_game_command(
             return {"success": False, "message": message, "exit": False}
         # Mark game as saved (fresh load)
         game_manager.update_game_metadata(game_name, current_session_unsaved=False)
-        # Clear journeys and journal for new session
+        # Clear journeys for new session but reload the game's journal
         journey_manager.stop_all_journeys()
-        journal_manager.clear_journal()
+        # Set journal path to game's journal
+        game_path = game_manager.get_game_path(game_name)
+        journal_path = game_path / "journal.yaml"
+        journal_manager.set_journal_path(str(journal_path))
     else:
         # Create new game
         success, message = game_manager.create_game(game_name)
         if not success:
             return {"success": False, "message": message, "exit": False}
-        # Clear journeys and journal for new game
+        # Clear journeys and reset journal for new game
         journey_manager.stop_all_journeys()
         journal_manager.clear_journal()
+        # Set journal path to game's journal
+        game_path = game_manager.get_game_path(game_name)
+        journal_path = game_path / "journal.yaml"
+        journal_manager.set_journal_path(str(journal_path))
 
     return {
         "success": True,
@@ -464,7 +479,7 @@ def _list_games_command(command, game_manager):
     }
 
 
-def _select_game_command(command, game_manager):
+def _select_game_command(command, game_manager, journal_manager):
     """Switch to a different game.
 
     Usage: select <game_name>
@@ -490,6 +505,11 @@ def _select_game_command(command, game_manager):
 
     if not success:
         return {"success": False, "message": message, "exit": False}
+
+    # Update journal path to the selected game's journal
+    game_path = game_manager.get_game_path(game_name)
+    journal_path = game_path / "journal.yaml"
+    journal_manager.set_journal_path(str(journal_path))
 
     return {
         "success": True,
