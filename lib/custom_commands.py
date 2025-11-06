@@ -1007,8 +1007,7 @@ def _create_player_command(command, game_manager, handler):
         }
 
     # Check if a template was specified
-    parts = command.split(maxsplit=1)
-    template_name = parts[1] if len(parts) > 1 else None
+    template_name = command.args[0] if command.args else None
 
     if template_name:
         # Load template-based player creation
