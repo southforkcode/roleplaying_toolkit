@@ -3,7 +3,7 @@
 import random
 from typing import Optional
 from lib.player import Player
-from lib.ability_scores import ABILITY_SCORES, is_valid_ability, is_valid_score
+from lib.ability_scores import ABILITY_SCORES
 from lib.player_manager import PlayerManager
 
 
