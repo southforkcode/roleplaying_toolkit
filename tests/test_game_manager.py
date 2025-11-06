@@ -231,6 +231,96 @@ class TestGameManager(unittest.TestCase):
         self.assertFalse(valid)
         self.assertNotEqual(error, "")
 
+    def test_current_game_yaml_metadata_creation(self):
+        """Test that current_game.yaml is created with metadata (issue #16)."""
+        self.game_manager.create_game("test_game")
+        
+        # Check that current_game.yaml exists
+        metadata_file = Path(self.test_dir) / "current_game.yaml"
+        self.assertTrue(metadata_file.exists())
+        
+        # Check metadata contents
+        import yaml
+        with open(metadata_file, "r") as f:
+            metadata = yaml.safe_load(f)
+        
+        self.assertIn("game_name", metadata)
+        self.assertEqual(metadata["game_name"], "test_game")
+        self.assertIn("last_accessed", metadata)
+
+    def test_current_game_yaml_updated_on_load(self):
+        """Test that current_game.yaml is updated when loading a game (use case 4)."""
+        self.game_manager.create_game("game1")
+        self.game_manager.create_game("game2")
+        
+        # Load game1
+        self.game_manager.load_game("game1")
+        
+        # Check metadata file
+        import yaml
+        metadata_file = Path(self.test_dir) / "current_game.yaml"
+        with open(metadata_file, "r") as f:
+            metadata = yaml.safe_load(f)
+        
+        self.assertEqual(metadata["game_name"], "game1")
+
+    def test_startup_no_games(self):
+        """Test startup behavior with no saved games (use case 1)."""
+        manager = GameManager(self.test_dir)
+        # No games should result in None current game
+        self.assertIsNone(manager.get_current_game())
+
+    def test_startup_with_games_no_metadata(self):
+        """Test startup with existing games but no current_game.yaml (use case 2)."""
+        # Create a game folder manually without using GameManager
+        game_dir = Path(self.test_dir) / "game_existing"
+        game_dir.mkdir()
+        
+        # Create new manager - should not set current game
+        manager = GameManager(self.test_dir)
+        self.assertIsNone(manager.get_current_game())
+
+    def test_startup_with_valid_metadata(self):
+        """Test startup with valid current_game.yaml pointing to existing game (use case 3)."""
+        self.game_manager.create_game("game1")
+        self.game_manager.create_game("game2")
+        
+        # Load game1
+        self.game_manager.load_game("game1")
+        
+        # Create new manager instance
+        manager = GameManager(self.test_dir)
+        self.assertEqual(manager.get_current_game(), "game1")
+
+    def test_startup_with_invalid_metadata(self):
+        """Test startup with current_game.yaml pointing to deleted game (use case 4)."""
+        self.game_manager.create_game("game1")
+        self.game_manager.load_game("game1")
+        
+        # Delete the game manually
+        game_dir = Path(self.test_dir) / "game_game1"
+        shutil.rmtree(game_dir)
+        
+        # Create new manager instance - should not set current game
+        manager = GameManager(self.test_dir)
+        self.assertIsNone(manager.get_current_game())
+
+    def test_delete_game_clears_metadata_if_current(self):
+        """Test that deleting current game clears current_game.yaml."""
+        self.game_manager.create_game("game1")
+        self.game_manager.load_game("game1")
+        
+        # Verify metadata is set
+        metadata_file = Path(self.test_dir) / "current_game.yaml"
+        self.assertTrue(metadata_file.exists())
+        
+        # Delete the game
+        self.game_manager.delete_game("game1")
+        
+        # Create new manager - should have no current game
+        manager = GameManager(self.test_dir)
+        self.assertIsNone(manager.get_current_game())
+
 
 if __name__ == "__main__":
     unittest.main()
