@@ -20,6 +20,7 @@ class PlayerCreationContext:
         self.game_manager = game_manager
         self.game_name = game_name
         self.player: Optional[Player] = None
+        self.rolled_scores: list[int] = []  # Track rolled scores for user assignment
 
         # Get the game's directory and create player manager
         game_path = self.game_manager.get_game_path(game_name)
@@ -61,30 +62,30 @@ class PlayerCreationContext:
         return self.player.set_ability(ability, value)
 
     def roll_abilities(self) -> tuple[bool, str]:
-        """Roll random ability scores for the current player (4d6 drop lowest).
+        """Roll random ability scores (4d6 drop lowest) but don't assign them.
 
-        Args:
-            None
+        User must manually assign rolled scores using the 'set' command.
 
         Returns:
-            Tuple of (success, message)
+            Tuple of (success, message with rolled scores)
         """
         if self.player is None:
             return False, "Cannot roll abilities: no active player"
 
-        rolled_abilities = {}
-        for ability in ABILITY_SCORES:
+        rolled_scores = []
+        for _ in range(6):
             # Roll 4d6 and drop the lowest
             rolls = sorted([random.randint(1, 6) for _ in range(4)])
-            rolled_abilities[ability] = sum(rolls[1:])  # Drop lowest, sum the rest
-            self.player.set_ability(ability, rolled_abilities[ability])
+            score = sum(rolls[1:])  # Drop lowest, sum the rest
+            rolled_scores.append(score)
 
-        # Format message
-        ability_strs = [
-            f"{ABILITY_SCORES[a]['display']} {rolled_abilities[a]}"
-            for a in ABILITY_SCORES
-        ]
-        return True, f"Rolled abilities: {', '.join(ability_strs)}"
+        # Store the scores for reference
+        self.rolled_scores = sorted(rolled_scores, reverse=True)
+
+        # Format message showing the rolled scores
+        scores_str = ", ".join(str(s) for s in self.rolled_scores)
+        assign_msg = "(Use 'set <ability> <value>' to assign these scores)"
+        return True, f"Rolled abilities: {scores_str}\n{assign_msg}"
 
     def get_status(self) -> str:
         """Get current player creation status.

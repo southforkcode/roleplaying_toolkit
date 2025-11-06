@@ -65,17 +65,25 @@ class TestPlayerCreationContext:
         assert "no active player" in message
 
     def test_roll_abilities(self, game_manager):
-        """Test rolling random ability scores."""
+        """Test rolling random ability scores (without assigning them)."""
         context = PlayerCreationContext(game_manager, "test_game")
         context.set_player_name("Jackbar")
 
         success, message = context.roll_abilities()
         assert success is True
-        
-        # All abilities should be between 3 and 20
-        for ability in ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]:
-            score = context.player.get_ability(ability)
+        assert "Rolled abilities" in message
+
+        # Rolled scores should be stored but NOT automatically assigned to player
+        assert len(context.rolled_scores) == 6
+        # All rolled scores should be between 3 and 20
+        for score in context.rolled_scores:
             assert 3 <= score <= 20
+
+        # Player abilities should still be at default (10), not the rolled values
+        for ability in ["strength", "dexterity", "constitution",
+                        "intelligence", "wisdom", "charisma"]:
+            score = context.player.get_ability(ability)
+            assert score == 10  # Should still be default
 
     def test_roll_abilities_no_player(self, game_manager):
         """Test rolling abilities when no player exists."""
@@ -159,6 +167,8 @@ class TestPlayerCreationHandler:
         handler.handle("name Jackbar")
         response = handler.handle("roll")
         assert "rolled" in response.lower() or "abilities" in response.lower()
+        # Verify abilities are NOT automatically assigned (should still be 10)
+        assert handler.context.player.get_ability("strength") == 10
 
     def test_handle_status_command(self, game_manager):
         """Test handling status command."""
