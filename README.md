@@ -4,6 +4,7 @@ A command-line toolkit for roleplaying games with journey tracking, dice rolling
 
 ## Features
 
+- **Player Character System**: Create and manage party members with D&D ability scores (Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma)
 - **Journey System**: Track long-term quests and adventures with progress monitoring
 - **Dice Rolling**: Full D&D-style dice rolling with advantage/disadvantage support
 - **Save/Load System**: Persistent game state with named save slots
@@ -24,7 +25,7 @@ python roleplaying_toolkit.py
 
 - `help` - Show available commands
 - `quit` / `exit` - Exit the application
-- `status` - Show current game status
+- `status` - Show current game status (health, level, party members, active journeys)
 
 #### Game Management
 
@@ -35,6 +36,49 @@ python roleplaying_toolkit.py
 - `select <game_name>` - Switch to a different game
   - Example: `select campaign_module_1`
 - `session` - Display current game info and session status
+
+#### Player Character Creation
+
+- `create_player` - Enter interactive player character creation mode
+  - Prompts for player name
+  - Supports D&D-style ability scores (Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma)
+  - Players saved in game-specific directory (`saves/game_<name>/players/<name>.yaml`)
+
+**Player Creation Workflow:**
+
+```text
+> create_player
+Starting player creation for game 'my_adventure'.
+Type 'help' for available commands.
+
+Enter player name: Aragorn
+Created player 'Aragorn'
+
+Player Creation Mode
+  name <name>        - Set player name
+  set <ability> <#>  - Set ability score
+                       Abilities: str, dex, con, int, wis, cha
+  roll               - Roll random abilities (4d6 drop lowest)
+  status             - Show current player status
+  save               - Save player to game
+  help               - Show this help message
+  exit               - Exit without saving
+
+> roll
+Rolled abilities: Strength 14, Dexterity 15, Constitution 13, Intelligence 10, Wisdom 14, Charisma 11
+
+> status
+Player: Aragorn
+  Strength: 14
+  Dexterity: 15
+  Constitution: 13
+  Intelligence: 10
+  Wisdom: 14
+  Charisma: 11
+
+> save
+Saved player Aragorn.
+```
 
 #### Journey System
 
