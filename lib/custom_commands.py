@@ -221,6 +221,7 @@ def _roll_dice_command(command):
 def _status_command(command, journey_manager, game_manager):
     """Show current game status."""
     from lib.player_manager import PlayerManager
+    from lib.ability_scores import ABILITY_SCORES
 
     status_lines = [
         "Current Status:",
@@ -241,7 +242,20 @@ def _status_command(command, journey_manager, game_manager):
             status_lines.append(f"\nParty Members ({player_count}):")
             players = player_manager.get_all_players()
             for i, player in enumerate(players, 1):
-                status_lines.append(f"  {i}. {player.name} (no class)")
+                # Build ability abbreviations (STR, DEX, CON, INT, WIS, CHA)
+                ability_abbrev = []
+                for ability in ['strength', 'dexterity', 'constitution',
+                                'intelligence', 'wisdom', 'charisma']:
+                    score = player.get_ability(ability)
+                    short = ABILITY_SCORES[ability]['short']
+                    ability_abbrev.append(f"{short}:{score}")
+                
+                abilities_str = " ".join(ability_abbrev)
+                class_str = f"({player.class_type})" if player.class_type else "(no class)"
+                status_lines.append(
+                    f"  {i}. {player.name} {class_str}\n"
+                    f"      {abilities_str}"
+                )
 
     # Add journey information if there are active journeys
     if journey_manager.has_active_journeys():
