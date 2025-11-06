@@ -91,9 +91,16 @@ class Player:
         player.created_at = data.get("created_at", player.created_at)
         player.updated_at = data.get("updated_at", player.updated_at)
 
-        # Restore stats
+        # Restore stats - but filter out default values (backwards compatibility)
+        # Old saves had all abilities initialized to 10, new system treats them as unset
         if "stats" in data:
-            player.stats.update(data["stats"])
+            for ability, value in data["stats"].items():
+                # Only restore non-default values
+                # Default values (10) represent unset abilities in the new system
+                if ability in ABILITY_SCORES:
+                    default_val = ABILITY_SCORES[ability]["default"]
+                    if value != default_val:
+                        player.stats[ability] = value
 
         return player
 
