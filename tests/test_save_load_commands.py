@@ -27,6 +27,7 @@ class TestSaveLoadCommands:
         # This is simpler than trying to patch the existing handler
         from lib.command_handler import CommandHandler
         from lib.journey_system import JourneyManager
+        from lib.game_manager import GameManager
         from lib.state_manager import StateManager
         from lib.custom_commands import (
             _roll_dice_command,
@@ -41,7 +42,11 @@ class TestSaveLoadCommands:
 
         self.handler = CommandHandler()
         self.journey_manager = JourneyManager()
-        self.state_manager = StateManager(self.temp_dir)
+        # Create a game manager that uses our temp directory
+        self.game_manager = GameManager(self.temp_dir)
+        # Create a test game so save/load commands work
+        self.game_manager.create_game("test_game")
+        self.game_manager.set_current_game("test_game")
 
         # Register commands with our test instances
         self.handler.register_command("roll", _roll_dice_command)
@@ -50,14 +55,14 @@ class TestSaveLoadCommands:
         )
         self.handler.register_command(
             "save",
-            lambda cmd: _save_command(cmd, self.journey_manager, self.state_manager),
+            lambda cmd: _save_command(cmd, self.journey_manager, self.game_manager),
         )
         self.handler.register_command(
             "load",
-            lambda cmd: _load_command(cmd, self.journey_manager, self.state_manager),
+            lambda cmd: _load_command(cmd, self.journey_manager, self.game_manager),
         )
         self.handler.register_command(
-            "saves", lambda cmd: _saves_command(cmd, self.state_manager)
+            "saves", lambda cmd: _saves_command(cmd, self.game_manager)
         )
         self.handler.register_command(
             "journey", lambda cmd: _journey_command(cmd, self.journey_manager)
@@ -81,7 +86,8 @@ class TestSaveLoadCommands:
 
         assert result["success"] is True
         assert "quicksave" in result["message"]
-        assert Path(self.temp_dir, "quicksave.yaml").exists()
+        # Saves are now in the game's saves subdirectory
+        assert Path(self.temp_dir, "game_test_game", "saves", "quicksave.yaml").exists()
 
     def test_save_command_custom_name(self):
         """Test save command with custom name."""
@@ -90,7 +96,8 @@ class TestSaveLoadCommands:
 
         assert result["success"] is True
         assert "my_save" in result["message"]
-        assert Path(self.temp_dir, "my_save.yaml").exists()
+        # Saves are now in the game's saves subdirectory
+        assert Path(self.temp_dir, "game_test_game", "saves", "my_save.yaml").exists()
 
     def test_save_command_with_journeys(self):
         """Test save command with active journeys."""
@@ -109,7 +116,7 @@ class TestSaveLoadCommands:
         assert "with_journeys" in result["message"]
 
         # Verify file exists and contains journey data
-        save_path = Path(self.temp_dir, "with_journeys.yaml")
+        save_path = Path(self.temp_dir, "game_test_game", "saves", "with_journeys.yaml")
         assert save_path.exists()
 
         import yaml
@@ -128,7 +135,6 @@ class TestSaveLoadCommands:
         result = self.handler.execute_command(command)
 
         assert result["success"] is False
-        assert "Load failed" in result["message"]
         assert "not found" in result["message"]
 
     def test_load_command_no_args(self):

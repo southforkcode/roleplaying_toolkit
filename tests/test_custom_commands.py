@@ -227,7 +227,10 @@ class TestCustomCommands(unittest.TestCase):
         self.assertFalse(result["exit"])
 
     def test_save_command_with_name(self):
-        """Test save command with explicit name."""
+        """Test save command with custom save name."""
+        # First create a game to save for
+        self.handler.process_input("new test_game")
+        
         result = self.handler.process_input("save mysave")
 
         self.assertTrue(result["success"])
@@ -236,6 +239,9 @@ class TestCustomCommands(unittest.TestCase):
 
     def test_save_command_default_name(self):
         """Test save command with default name."""
+        # First create a game to save for
+        self.handler.process_input("new test_game")
+        
         result = self.handler.process_input("save")
 
         self.assertTrue(result["success"])
@@ -244,10 +250,13 @@ class TestCustomCommands(unittest.TestCase):
 
     def test_load_command_with_name(self):
         """Test load command with save name (should fail if file doesn't exist)."""
+        # First create a game 
+        self.handler.process_input("new test_game")
+        
         result = self.handler.process_input("load mysave")
 
         self.assertFalse(result["success"])  # Should fail since file doesn't exist
-        self.assertIn("Load failed", result["message"])
+        self.assertIn("Save file 'mysave' not found", result["message"])
         self.assertFalse(result["exit"])
 
     def test_load_command_no_name(self):
