@@ -51,33 +51,92 @@ python roleplaying_toolkit.py
 Starting player creation for game 'my_adventure'.
 Type 'help' for available commands.
 
-Enter player name: Aragorn
+Name of new player? Aragorn
 Created player 'Aragorn'
 
 Player Creation Mode
   name <name>        - Set player name
   set <ability> <#>  - Set ability score
                        Abilities: str, dex, con, int, wis, cha
-  roll               - Roll random abilities (4d6 drop lowest)
+  roll <dice>        - Roll with dice notation (e.g., roll d20, roll 2d6+3)
   status             - Show current player status
   save               - Save player to game
   help               - Show this help message
   exit               - Exit without saving
 
-> roll
-Rolled abilities: Strength 14, Dexterity 15, Constitution 13, Intelligence 10, Wisdom 14, Charisma 11
+> roll d20
+Rolled d20: 16
+
+> set str 16
+Set Strength to 16
+
+> set dex 14
+Set Dexterity to 14
+
+> set con 15
+Set Constitution to 15
+
+> set int 10
+Set Intelligence to 10
+
+> set wis 12
+Set Wisdom to 12
+
+> set cha 13
+Set Charisma to 13
 
 > status
 Player: Aragorn
-  Strength: 14
-  Dexterity: 15
-  Constitution: 13
+  Strength: 16
+  Dexterity: 14
+  Constitution: 15
   Intelligence: 10
-  Wisdom: 14
-  Charisma: 11
+  Wisdom: 12
+  Charisma: 13
 
 > save
 Saved player Aragorn.
+```
+
+**Template-Based Player Creation:**
+
+Templates provide guided workflows for different RPG systems. Use `create_player <template_name>` to start a templated creation:
+
+```text
+> list_templates
+Available player creation templates:
+  d20_standard: D&D 5e Standard Character Creation (v1.0) - 9 steps
+
+Use 'create_player <template_name>' to start.
+
+> create_player d20_standard
+Starting player creation using template 'D&D 5e Standard Character Creation'.
+Description: Standard D&D 5e character creation with 6 ability scores
+Total steps: 9
+Type 'help' for available commands.
+
+What is your character's name? Legolas
+Created player 'Legolas'
+
+> help
+Player Creation Mode
+  set <ability> <#>  - Set ability score directly
+                       Abilities: str, dex, con, int, wis, cha
+  @roll d20          - Roll a d20
+  @roll-top 3 4d6    - Roll 4d6, keep top 3 (for ability scores)
+  status             - Show current character
+  show               - Show current step details
+  back               - Go to previous step
+  cancel             - Exit without saving
+
+> @roll-top 3 4d6
+Rolled 4d6: [6, 5, 4, 2] - kept top 3 = 15
+
+> set dex 15
+Set Dexterity to 15
+
+> progress
+Next step...
 ```
 
 #### Journey System
@@ -365,12 +424,28 @@ Journal Entries:
    > save tutorial
    ```
 
-3. **Advanced Usage**: Explore dice rolling and save management
+3. **Advanced Usage**: Use dice rolling and save management in a real scenario
 
    ```text
+   > save pre_boss_encounter
+   Game saved as 'pre_boss_encounter'
+
    > roll d20 advantage
+   Rolled d20 (advantage): 18, 12 => 18
+
+   > progress 3
+   Progress on 'Final Battle': 3/5
+
+   > save post_encounter
+   Game saved as 'post_encounter'
+
    > saves
-   > new
+   Available saves:
+     pre_boss_encounter (1 journeys)
+     post_encounter (1 journeys)
+   
+   > load pre_boss_encounter
+   Game loaded from 'pre_boss_encounter'
    ```
 
 ## Development

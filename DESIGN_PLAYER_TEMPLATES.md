@@ -24,9 +24,9 @@ Currently, player creation is hardcoded to the D&D 6-ability system. We need:
 
 ### 1. Template Structure (YAML Format)
 
-**File Location**: `templates/player_creation/<template_name>.yaml`
+**File Location**: `templates/player/<template_name>.yaml`
 
-**Example**: `templates/player_creation/d20_standard.yaml`
+**Example**: `templates/player/d20_standard.yaml`
 
 ```yaml
 name: "D&D 5e Standard Character Creation"
